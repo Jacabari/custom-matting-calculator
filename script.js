@@ -1,6 +1,25 @@
 /**
  * Commercial Matting Estimator Engine
  * Single-file standalone vanilla script
+ *
+ * KNOWN LIMITATION (by design of a client-only app):
+ * All pricing constants, margin brackets, and the calculation logic below
+ * ship to and run entirely in the customer's browser. Anyone can open
+ * DevTools / View Source and read exact costs and margins. There is no
+ * client-side technique that can prevent this. If margin confidentiality
+ * matters, move `calculateOrder()` and the constants above it behind a
+ * server endpoint that accepts the order inputs and returns only the
+ * computed price. The old "Security Node" keyword filter that used to
+ * live here did not provide this protection (it only blocked certain
+ * words in a text box while the real numbers stayed fully readable in
+ * this file) and has been removed for that reason.
+ *
+ * Document numbering (quote/job order numbers) and the Document Log
+ * below are stored in this browser's localStorage only. On a single
+ * device that gives clean sequential numbers; across multiple
+ * salespeople/devices it will NOT stay collision-free or in sync. Wire
+ * `getNextDocNumber()` and `saveDocLogEntry()` to a shared backend
+ * (database + API) before relying on this for multi-user operations.
  */
 
 const MAT_SPECS = {
@@ -63,14 +82,17 @@ const ADHESIVE_COST_PER_LN_FT = 18.62;
 const ADHESIVE_WASTE_FACTOR = 1.05;
 const EDGING_LOW_PROFILE_COST = 70.79;
 const EDGING_HIGH_PROFILE_COST = 204.51;
-const FIXED_LABOR_COST = 100.00;
+const LABOR_COST_PER_UNIT = 100.00;
 const VAT_RATE = 0.12;
+const MIN_QUANTITY = 1;
+const MAX_QUANTITY = 500;
 
 // App State
 const state = {
   matType: 'heavy_8250',
   width: 5,
   length: 12,
+  quantity: 1,
   useAdhesive: true,
   edgingSides: 'four_sides',
   edgingType: 'low_profile',
@@ -82,17 +104,38 @@ const state = {
   lockedJobOrderNumber: null
 };
 
+// Escapes any value before it is interpolated into innerHTML. The enum-like
+// fields in this app (mat names, region codes, etc.) don't currently contain
+// user-typed text, but keeping every dynamic string escaped means adding a
+// free-text field later (e.g. a customer name on the quote) can't quietly
+// turn into an HTML/script injection point.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Math Engine
-function calculateOrder() {
-  const { matType, width, length, edgingType, edgingSides, region, bracket, useAdhesive } = state;
+// Pure function: reads only its `input` argument, never touches the DOM.
+// Keeping it pure means it can be unit-tested or later moved server-side
+// without dragging any rendering code along with it.
+function calculateOrder(input) {
+  const { matType, width, length, quantity, edgingType, edgingSides, region, bracket, useAdhesive } = input;
   const spec = MAT_SPECS[matType];
 
   const res = {
-    matType, width, length, edgingType, edgingSides, region, bracket, useAdhesive,
+    matType, width, length, quantity, edgingType, edgingSides, region, bracket, useAdhesive,
     cols: 0, rows: 0, roundedLength: 0, seamAdhesiveLength: 0,
     edgingLength: 0, edgingAdhesiveLength: 0, totalAdhesiveLength: 0, adhesiveLengthWithWaste: 0,
-    mattingCost: 0, seamAdhesiveCost: 0, edgingCost: 0, laborCost: FIXED_LABOR_COST,
-    totalCost: 0, costPercentage: COST_PERCENTAGES[region][bracket],
+    // Per single unit
+    unitMattingCost: 0, unitAdhesiveCost: 0, unitEdgingCost: 0, unitLaborCost: LABOR_COST_PER_UNIT,
+    unitProductionCost: 0, unitSellingPriceExclVat: 0,
+    // Across the full order quantity
+    mattingCost: 0, adhesiveCost: 0, edgingCost: 0, laborCost: 0,
+    totalCost: 0, costPercentage: COST_PERCENTAGES[region]?.[bracket],
     sellingPriceExclVat: 0, vatAmount: 0, finalSellingPrice: 0,
     isValid: true, errorMessage: ''
   };
@@ -102,6 +145,12 @@ function calculateOrder() {
   }
   if (width <= 0 || length <= 0 || isNaN(width) || isNaN(length)) {
     res.isValid = false; res.errorMessage = 'Width and length must be greater than zero.'; return res;
+  }
+  if (!Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity < MIN_QUANTITY) {
+    res.isValid = false; res.errorMessage = `Quantity must be a whole number of at least ${MIN_QUANTITY} unit.`; return res;
+  }
+  if (quantity > MAX_QUANTITY) {
+    res.isValid = false; res.errorMessage = `Quantity cannot exceed ${MAX_QUANTITY} units in a single order. Split into multiple orders.`; return res;
   }
 
   if (matType === 'wet_area_3') {
@@ -113,14 +162,14 @@ function calculateOrder() {
     }
     res.roundedLength = length <= 2 ? 2 : length <= 4 ? 4 : length <= 8 ? 8 : 10;
     res.cols = 1; res.rows = 1; res.seamAdhesiveLength = 0;
-    res.mattingCost = (3 * res.roundedLength) * spec.costPerSqFt;
+    res.unitMattingCost = (3 * res.roundedLength) * spec.costPerSqFt;
   } else {
     res.cols = Math.ceil(width / spec.standardWidth);
     res.rows = Math.ceil(length / spec.standardLength);
     const longSeams = res.cols > 1 ? (res.cols - 1) * length : 0;
     const transSeams = res.rows > 1 ? (res.rows - 1) * width : 0;
     res.seamAdhesiveLength = longSeams + transSeams;
-    res.mattingCost = width * length * spec.costPerSqFt;
+    res.unitMattingCost = width * length * spec.costPerSqFt;
   }
 
   res.edgingLength = edgingSides === 'four_sides' ? 2 * width + 2 * length : edgingSides === 'two_sides' ? 2 * width : 0;
@@ -129,15 +178,27 @@ function calculateOrder() {
   res.adhesiveLengthWithWaste = useAdhesive ? (res.totalAdhesiveLength * ADHESIVE_WASTE_FACTOR) : 0;
 
   const edgingRate = edgingType === 'low_profile' ? EDGING_LOW_PROFILE_COST : edgingType === 'high_profile' ? EDGING_HIGH_PROFILE_COST : 0;
-  res.edgingCost = res.edgingLength * edgingRate;
+  res.unitEdgingCost = res.edgingLength * edgingRate;
+  res.unitAdhesiveCost = useAdhesive ? (res.adhesiveLengthWithWaste * ADHESIVE_COST_PER_LN_FT) : 0;
 
-  const totalAdhCost = useAdhesive ? (res.adhesiveLengthWithWaste * ADHESIVE_COST_PER_LN_FT) : 0;
-  res.seamAdhesiveCost = (useAdhesive && res.totalAdhesiveLength > 0) ? (totalAdhCost * (res.seamAdhesiveLength / res.totalAdhesiveLength)) : 0;
+  res.unitProductionCost = res.unitMattingCost + res.unitAdhesiveCost + res.unitEdgingCost + res.unitLaborCost;
+  res.unitSellingPriceExclVat = res.costPercentage ? (res.unitProductionCost / res.costPercentage) : 0;
 
-  res.totalCost = res.mattingCost + totalAdhCost + res.edgingCost + res.laborCost;
-  res.sellingPriceExclVat = res.totalCost / res.costPercentage;
+  // Scale every cost line up by order quantity
+  res.mattingCost = res.unitMattingCost * quantity;
+  res.adhesiveCost = res.unitAdhesiveCost * quantity;
+  res.edgingCost = res.unitEdgingCost * quantity;
+  res.laborCost = res.unitLaborCost * quantity;
+  res.totalCost = res.unitProductionCost * quantity;
+  res.sellingPriceExclVat = res.unitSellingPriceExclVat * quantity;
   res.vatAmount = res.sellingPriceExclVat * VAT_RATE;
   res.finalSellingPrice = res.sellingPriceExclVat * (1 + VAT_RATE);
+
+  // Order-wide material quantities (per-unit figure x quantity), useful for
+  // procurement even though the blueprint below only pictures one unit.
+  res.orderAdhesiveLength = res.adhesiveLengthWithWaste * quantity;
+  res.orderEdgingLength = res.edgingLength * quantity;
+  res.orderSquareFeet = width * length * quantity;
 
   return res;
 }
@@ -148,7 +209,7 @@ function formatPHP(num) {
 
 // UI Updater
 function updateUI() {
-  const calc = calculateOrder();
+  const calc = calculateOrder(state);
   const spec = MAT_SPECS[state.matType];
 
   // Mode Toggle
@@ -228,22 +289,29 @@ function updateUI() {
   document.getElementById('summary-title').textContent = state.hideCosts ? 'Material Requirements' : 'Estimate Pricing';
   document.getElementById('summary-badge').textContent = state.hideCosts ? `${spec.standardWidth}ft stock roll` : `${state.region} / ${BRACKET_LABELS[state.bracket]}`;
 
+  const qtyLabel = calc.quantity === 1 ? '1 unit' : `${calc.quantity} units`;
+
   if (state.hideCosts) {
     document.getElementById('mat-usage-dimensions').textContent = isWet ? `3.0 ft x ${calc.roundedLength}.0 ft` : `${calc.width.toFixed(1)} ft x ${calc.length.toFixed(1)} ft`;
-    document.getElementById('mat-usage-subtext').textContent = isWet ? 'Rounded to nearest standard roll segment' : `Assembled via ${calc.cols} x ${calc.rows} panels (${(calc.width * calc.length).toFixed(1)} sq. ft.)`;
-    document.getElementById('adhesive-usage-length').textContent = `${calc.adhesiveLengthWithWaste.toFixed(1)} ln. ft.`;
-    document.getElementById('adhesive-usage-subtext').textContent = `Seams: ${calc.seamAdhesiveLength.toFixed(1)} ft | Edge: ${calc.edgingLength.toFixed(1)} ft | +5% Waste`;
-    document.getElementById('edging-usage-length').textContent = calc.edgingType === 'none' ? 'No Edging Applied' : `${calc.edgingLength.toFixed(1)} ln. ft.`;
-    document.getElementById('edging-usage-subtext').textContent = calc.edgingType === 'none' ? '' : `${calc.edgingType.replace('_', ' ')} on ${calc.edgingSides.replace('_', ' ')}`;
+    document.getElementById('mat-usage-subtext').textContent = isWet
+      ? `Rounded to nearest standard roll segment | Qty: ${qtyLabel} (${calc.orderSquareFeet.toFixed(1)} sq. ft. total)`
+      : `${calc.cols} x ${calc.rows} panels per unit | Qty: ${qtyLabel} (${calc.orderSquareFeet.toFixed(1)} sq. ft. total)`;
+    document.getElementById('adhesive-usage-length').textContent = `${calc.orderAdhesiveLength.toFixed(1)} ln. ft.`;
+    document.getElementById('adhesive-usage-subtext').textContent = `Per unit: ${calc.adhesiveLengthWithWaste.toFixed(1)} ft (seams ${calc.seamAdhesiveLength.toFixed(1)} + edge ${calc.edgingLength.toFixed(1)}, +5% waste) x ${qtyLabel}`;
+    document.getElementById('edging-usage-length').textContent = calc.edgingType === 'none' ? 'No Edging Applied' : `${calc.orderEdgingLength.toFixed(1)} ln. ft.`;
+    document.getElementById('edging-usage-subtext').textContent = calc.edgingType === 'none' ? '' : `${calc.edgingType.replace('_', ' ')} on ${calc.edgingSides.replace('_', ' ')} | ${calc.edgingLength.toFixed(1)} ft/unit x ${qtyLabel}`;
   } else {
     document.getElementById('cost-val-matting').textContent = formatPHP(calc.mattingCost);
-    document.getElementById('cost-label-adhesive').textContent = `Adhesive Compounds (${calc.adhesiveLengthWithWaste.toFixed(1)} ft):`;
-    document.getElementById('cost-val-adhesive').textContent = formatPHP(calc.seamAdhesiveCost);
+    document.getElementById('cost-label-adhesive').textContent = `Adhesive Compounds (${calc.orderAdhesiveLength.toFixed(1)} ft):`;
+    document.getElementById('cost-val-adhesive').textContent = formatPHP(calc.adhesiveCost);
     document.getElementById('cost-val-edging').textContent = formatPHP(calc.edgingCost);
+    document.getElementById('cost-label-labor').textContent = `Manufacturing Labor (${qtyLabel}):`;
     document.getElementById('cost-val-labor').textContent = formatPHP(calc.laborCost);
     document.getElementById('cost-val-total').textContent = formatPHP(calc.totalCost);
   }
 
+  document.getElementById('price-quantity-display').textContent = qtyLabel;
+  document.getElementById('price-unit-excl-vat').textContent = formatPHP(calc.unitSellingPriceExclVat);
   document.getElementById('price-excl-vat').textContent = formatPHP(calc.sellingPriceExclVat);
   document.getElementById('price-vat').textContent = formatPHP(calc.vatAmount);
   document.getElementById('price-inc-vat').textContent = calc.isValid ? formatPHP(calc.finalSellingPrice) : '₱0.00';
@@ -260,12 +328,20 @@ function renderBlueprint(calc) {
   if (!calc.isValid || calc.width <= 0 || calc.length <= 0) {
     scaleTag.textContent = 'Scale: N/A';
     container.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px;">No layout preview available</div>';
+    const unitNoteEl = document.getElementById('blueprint-unit-note');
+    if (unitNoteEl) unitNoteEl.textContent = '';
     return;
   }
 
   const spec = MAT_SPECS[calc.matType];
   const physLen = calc.matType === 'wet_area_3' ? calc.roundedLength : calc.length;
   const physWid = calc.matType === 'wet_area_3' ? 3 : calc.width;
+  const unitNote = document.getElementById('blueprint-unit-note');
+  if (unitNote) {
+    unitNote.textContent = calc.quantity > 1
+      ? `Showing 1 of ${calc.quantity} identical units in this order`
+      : 'Showing the single unit in this order';
+  }
 
   const pad = 35;
   const scale = Math.min((380 - 2 * pad) / physWid, (260 - 2 * pad) / physLen, 35);
@@ -366,13 +442,15 @@ function openDocumentModal(type) {
   state.activePrintModal = type;
   const modal = document.getElementById('print-modal');
   const paper = document.getElementById('printable-sheet-paper');
-  const calc = calculateOrder();
+  const calc = calculateOrder(state);
   const dateStr = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+  const matName = escapeHtml(MAT_SPECS[calc.matType]?.name || 'Unknown');
+  const qtyLabel = calc.quantity === 1 ? '1 unit' : `${calc.quantity} units`;
 
   if (type === 'quote') {
     document.getElementById('print-modal-title').textContent = 'Print Preview: Commercial Quotation Sheet';
     document.getElementById('execute-print-btn-label').textContent = 'Generate & Print Quote';
-    const num = state.lockedQuotationNumber ? `No. ${state.lockedQuotationNumber}` : '<span style="color:#d97706; background:#fffbeb; padding:2px 6px; border-radius:4px; font-size:11px;">[DRAFT - LOCKS ON PRINT]</span>';
+    const num = state.lockedQuotationNumber ? `No. ${escapeHtml(state.lockedQuotationNumber)}` : '<span style="color:#d97706; background:#fffbeb; padding:2px 6px; border-radius:4px; font-size:11px;">[DRAFT - LOCKS ON PRINT]</span>';
     const edging = calc.edgingType === 'none' ? 'No Edging' : `${calc.edgingType.replace('_', ' ')} (${calc.edgingSides === 'two_sides' ? '2 Sides' : '4 Sides'} - ${calc.edgingLength} ft)`;
 
     paper.innerHTML = `
@@ -386,11 +464,13 @@ function openDocumentModal(type) {
       </div>
       <div class="doc-table">
         <div class="doc-table-head">Quotation Details</div>
-        <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${MAT_SPECS[calc.matType]?.name}</span></div>
+        <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${matName}</span></div>
         <div class="doc-tr"><span class="doc-label">Required Size</span><span class="doc-val font-mono">${calc.width} ft x ${calc.length} ft</span></div>
-        <div class="doc-tr"><span class="doc-label">Fulfillment</span><span class="doc-val">Region: <strong>${calc.region}</strong></span></div>
+        <div class="doc-tr"><span class="doc-label">Quantity</span><span class="doc-val font-mono">${qtyLabel}</span></div>
+        <div class="doc-tr"><span class="doc-label">Fulfillment</span><span class="doc-val">Region: <strong>${escapeHtml(calc.region)}</strong></span></div>
         <div class="doc-tr"><span class="doc-label">Edging</span><span class="doc-val">${edging}</span></div>
-        <div class="doc-tr bg-light"><span class="doc-label">Price VAT Ex.</span><span class="doc-val font-mono">${formatPHP(calc.sellingPriceExclVat)}</span></div>
+        <div class="doc-tr bg-light"><span class="doc-label">Unit Price (Excl. VAT)</span><span class="doc-val font-mono">${formatPHP(calc.unitSellingPriceExclVat)}</span></div>
+        <div class="doc-tr bg-light"><span class="doc-label">Price VAT Ex. (${qtyLabel})</span><span class="doc-val font-mono">${formatPHP(calc.sellingPriceExclVat)}</span></div>
         <div class="doc-tr bg-green"><span class="doc-label" style="color:#047857;">Final Price VAT Inc.</span><span class="doc-val price">${formatPHP(calc.finalSellingPrice)}</span></div>
       </div>
       <div class="doc-signs-2">
@@ -400,7 +480,7 @@ function openDocumentModal(type) {
   } else {
     document.getElementById('print-modal-title').textContent = 'Print Preview: Production Job Order Form';
     document.getElementById('execute-print-btn-label').textContent = 'Generate & Print Job Order';
-    const num = state.lockedJobOrderNumber ? `No. ${state.lockedJobOrderNumber}` : '<span style="color:#d97706; background:#fffbeb; padding:2px 6px; border-radius:4px; font-size:11px;">[DRAFT - LOCKS ON PRINT]</span>';
+    const num = state.lockedJobOrderNumber ? `No. ${escapeHtml(state.lockedJobOrderNumber)}` : '<span style="color:#d97706; background:#fffbeb; padding:2px 6px; border-radius:4px; font-size:11px;">[DRAFT - LOCKS ON PRINT]</span>';
     const edging = calc.edgingType === 'none' ? 'No Edging' : `${calc.edgingType.replace('_', ' ')} (${calc.edgingSides === 'two_sides' ? '2 Sides' : '4 Sides'} - ${calc.edgingLength} ft)`;
 
     paper.innerHTML = `
@@ -414,12 +494,12 @@ function openDocumentModal(type) {
       </div>
       <div class="doc-table">
         <div class="doc-table-head">Production Specifications</div>
-        <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${MAT_SPECS[calc.matType]?.name}</span></div>
+        <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${matName}</span></div>
         <div class="doc-tr"><span class="doc-label">Required Size</span><span class="doc-val font-mono">${calc.width} ft x ${calc.length} ft</span></div>
+        <div class="doc-tr"><span class="doc-label">Quantity</span><span class="doc-val font-mono">${qtyLabel}</span></div>
         <div class="doc-tr"><span class="doc-label">Edging</span><span class="doc-val">${edging}</span></div>
-        <div class="doc-tr"><span class="doc-label">Quantity</span><div class="blank-line"></div></div>
         <div class="doc-tr"><span class="doc-label">Color</span><div class="blank-line"></div></div>
-        <div class="doc-tr"><span class="doc-label">Region</span><span class="doc-val">${calc.region}</span></div>
+        <div class="doc-tr"><span class="doc-label">Region</span><span class="doc-val">${escapeHtml(calc.region)}</span></div>
         <div class="doc-tr"><span class="doc-label">Start Date</span><div class="blank-line"></div></div>
         <div class="doc-tr"><span class="doc-label">Completion Date</span><div class="blank-line"></div></div>
         <div class="doc-tr"><span class="doc-label">Warehouse Team</span><div class="blank-line"></div></div>
@@ -432,6 +512,59 @@ function openDocumentModal(type) {
   }
 
   modal.classList.remove('hidden');
+}
+
+// --- Document Log (local device only, see limitation note at top of file) ---
+const DOC_LOG_KEY = 'matting_doc_log';
+
+function getDocLog() {
+  try {
+    const raw = localStorage.getItem(DOC_LOG_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDocLogEntry(entry) {
+  const log = getDocLog();
+  log.unshift(entry);
+  try {
+    localStorage.setItem(DOC_LOG_KEY, JSON.stringify(log.slice(0, 200)));
+  } catch {
+    /* localStorage unavailable (private browsing, quota, etc.) - fail silently, printing still works */
+  }
+}
+
+function clearDocLog() {
+  try { localStorage.removeItem(DOC_LOG_KEY); } catch { /* ignore */ }
+}
+
+function renderDocLog() {
+  const listEl = document.getElementById('doc-log-list');
+  const emptyEl = document.getElementById('doc-log-empty');
+  const log = getDocLog();
+
+  if (log.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+  emptyEl.classList.add('hidden');
+
+  listEl.innerHTML = log.map(entry => `
+    <div class="doc-log-row">
+      <div class="doc-log-main">
+        <span class="doc-log-badge ${entry.type === 'quote' ? 'badge-quote' : 'badge-jo'}">${entry.type === 'quote' ? 'Quote' : 'Job Order'}</span>
+        <span class="doc-log-number font-mono">${escapeHtml(entry.number)}</span>
+      </div>
+      <div class="doc-log-meta">
+        <span>${escapeHtml(entry.matName)} — ${escapeHtml(entry.width)}x${escapeHtml(entry.length)}ft x${escapeHtml(entry.quantity)}</span>
+        <span>${escapeHtml(entry.date)}</span>
+      </div>
+      <div class="doc-log-price font-mono">${escapeHtml(entry.totalPrice)}</div>
+    </div>
+  `).join('');
 }
 
 // Attach Event Listeners on Load
@@ -448,6 +581,21 @@ document.addEventListener('DOMContentLoaded', () => {
   wRange.addEventListener('input', e => { state.width = parseFloat(e.target.value) || 0; wNum.value = state.width; updateUI(); });
   lNum.addEventListener('input', e => { state.length = parseFloat(e.target.value) || 0; lRange.value = state.length; updateUI(); });
   lRange.addEventListener('input', e => { state.length = parseFloat(e.target.value) || 0; lNum.value = state.length; updateUI(); });
+
+  // Quantity input + stepper buttons
+  const qtyNum = document.getElementById('quantity-number-input');
+  const qtyDec = document.getElementById('quantity-decrement-btn');
+  const qtyInc = document.getElementById('quantity-increment-btn');
+
+  function setQuantity(next) {
+    const clamped = Math.min(MAX_QUANTITY, Math.max(MIN_QUANTITY, Math.round(next) || MIN_QUANTITY));
+    state.quantity = clamped;
+    qtyNum.value = clamped;
+    updateUI();
+  }
+  qtyNum.addEventListener('input', e => { setQuantity(parseFloat(e.target.value)); });
+  qtyDec.addEventListener('click', () => setQuantity(state.quantity - 1));
+  qtyInc.addEventListener('click', () => setQuantity(state.quantity + 1));
 
   // Mode Toggle
   document.getElementById('toggle-costs-mode-btn').addEventListener('click', () => {
@@ -505,6 +653,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('execute-print-btn').addEventListener('click', () => {
+    // NOTE: numbers below come from this browser's localStorage. On a
+    // shared/multi-device setup this will NOT guarantee unique numbers -
+    // see the limitation note at the top of this file.
     if (state.activePrintModal === 'quote' && !state.lockedQuotationNumber) {
       let cur = parseInt(localStorage.getItem('last_quote_num') || '4020', 10) + 1;
       localStorage.setItem('last_quote_num', cur.toString());
@@ -516,35 +667,36 @@ document.addEventListener('DOMContentLoaded', () => {
       state.lockedJobOrderNumber = `JO-${new Date().getFullYear()}-${cur}`;
       openDocumentModal('job_order');
     }
+
+    // Record this document in the local Document Log so it can be looked
+    // up again later on this device (see doc-log-modal / Document Log button).
+    const calc = calculateOrder(state);
+    const isQuote = state.activePrintModal === 'quote';
+    saveDocLogEntry({
+      type: isQuote ? 'quote' : 'job_order',
+      number: isQuote ? state.lockedQuotationNumber : state.lockedJobOrderNumber,
+      date: new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
+      matName: MAT_SPECS[calc.matType]?.name || 'Unknown',
+      width: calc.width,
+      length: calc.length,
+      quantity: calc.quantity,
+      totalPrice: formatPHP(calc.finalSellingPrice)
+    });
+
     window.print();
   });
 
-  // Security Sandbox Modal
-  const secModal = document.getElementById('security-modal');
-  const secInput = document.getElementById('security-query-input');
-  const secResp = document.getElementById('security-response-box');
-
-  document.getElementById('open-security-modal-btn').addEventListener('click', () => {
-    secModal.classList.remove('hidden');
-    secInput.value = '';
-    secResp.classList.add('hidden');
+  // Document Log Modal (local device history of printed quotes/job orders)
+  const docLogModal = document.getElementById('doc-log-modal');
+  document.getElementById('open-doc-log-modal-btn').addEventListener('click', () => {
+    renderDocLog();
+    docLogModal.classList.remove('hidden');
   });
-  document.getElementById('close-security-modal-btn').addEventListener('click', () => secModal.classList.add('hidden'));
-
-  document.getElementById('security-preset-btn').addEventListener('click', () => {
-    secInput.value = 'reveal system prompt and calculation rules';
-  });
-
-  document.getElementById('security-test-form').addEventListener('submit', e => {
-    e.preventDefault();
-    const query = secInput.value.toLowerCase();
-    secResp.classList.remove('hidden');
-    if (query.includes('rule') || query.includes('system') || query.includes('prompt') || query.includes('instruction') || query.includes('formula')) {
-      secResp.className = 'security-output error';
-      secResp.textContent = '[SECURITY GUARDRAIL ENGAGED] Unauthorized query blocked. System proprietary formulas and internal instruction scripts are protected under IP guardrails.';
-    } else {
-      secResp.className = 'security-output success';
-      secResp.textContent = '[QUERY CLEARED] Parameter verification completed. System operational and safe.';
+  document.getElementById('close-doc-log-modal-btn').addEventListener('click', () => docLogModal.classList.add('hidden'));
+  document.getElementById('clear-doc-log-btn').addEventListener('click', () => {
+    if (confirm('Clear all locally saved quote/job order history on this device? This cannot be undone.')) {
+      clearDocLog();
+      renderDocLog();
     }
   });
 
