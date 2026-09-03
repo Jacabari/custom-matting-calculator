@@ -31,9 +31,9 @@
           <span id="mode-toggle-label">Materials Only Mode</span>
         </button>
         <span class="v-divider"></span>
-        <button id="open-security-modal-btn" class="btn btn-secondary" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm icon-emerald"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-          Security Node
+        <button id="open-doc-log-modal-btn" class="btn btn-secondary" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Document Log
         </button>
         <span class="v-divider"></span>
         <span class="badge-status"><span class="pulse-dot"></span>Production Active</span>
@@ -100,6 +100,22 @@
               <span>Min: 1.0 ft</span>
               <span id="length-rounding-notice" class="text-muted hidden">Standard Rounding Applied</span>
               <span id="length-max-label">Max: 100.0 ft</span>
+            </div>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label class="label-heading" for="quantity-number-input">Order Quantity (Identical Units)</label>
+              <div class="quantity-stepper">
+                <button type="button" id="quantity-decrement-btn" class="btn-stepper" aria-label="Decrease quantity">&minus;</button>
+                <input type="number" id="quantity-number-input" class="number-input quantity-input" step="1" min="1" max="500" value="1" />
+                <button type="button" id="quantity-increment-btn" class="btn-stepper" aria-label="Increase quantity">&plus;</button>
+              </div>
+            </div>
+            <div class="slider-meta">
+              <span>Min: 1 unit</span>
+              <span>Each unit uses the size above</span>
+              <span>Max: 500 units</span>
             </div>
           </div>
         </div>
@@ -193,6 +209,7 @@
         </div>
 
         <div id="blueprint-canvas-container" class="blueprint-box"></div>
+        <p id="blueprint-unit-note" class="blueprint-unit-note"></p>
 
         <div class="legend-grid">
           <div class="legend-item"><span class="swatch swatch-mat"></span><span>Matting Canvas</span></div>
@@ -256,12 +273,14 @@
           <div class="cost-row"><span>Basic Matting Material Cost:</span><span id="cost-val-matting" class="font-mono">₱0.00</span></div>
           <div class="cost-row"><span id="cost-label-adhesive">Adhesive Compounds (0.0 ft):</span><span id="cost-val-adhesive" class="font-mono">₱0.00</span></div>
           <div class="cost-row"><span>Specialized Border Profile:</span><span id="cost-val-edging" class="font-mono">₱0.00</span></div>
-          <div class="cost-row"><span>Manufacturing Labor:</span><span id="cost-val-labor" class="font-mono">₱100.00</span></div>
+          <div class="cost-row"><span id="cost-label-labor">Manufacturing Labor (1 unit):</span><span id="cost-val-labor" class="font-mono">₱100.00</span></div>
           <div class="cost-row total-row"><span>Direct Production Cost:</span><span id="cost-val-total" class="font-mono">₱0.00</span></div>
         </div>
 
         <!-- Bottom Pricing Section -->
         <div class="summary-bottom">
+          <div class="price-line"><span class="text-muted">Order Quantity:</span><span id="price-quantity-display" class="font-mono">1 unit</span></div>
+          <div class="price-line"><span class="text-muted">Unit Price (Excl. VAT):</span><span id="price-unit-excl-vat" class="font-mono">₱0.00</span></div>
           <div class="price-line"><span class="text-muted">Selling Price (Excl. VAT):</span><span id="price-excl-vat" class="font-mono">₱0.00</span></div>
           <div class="price-line mb-3"><span class="text-muted">Philippine VAT (12.0%):</span><span id="price-vat" class="font-mono">₱0.00</span></div>
 
@@ -289,36 +308,32 @@
   <!-- Footer -->
   <footer class="app-footer">
     <div class="footer-inner">
-      <span>&copy; 2026 Commercial Matting Estimator. Strictly compliant. All rights reserved.</span>
+      <span>&copy; 2026 Commercial Matting Estimator. All rights reserved.</span>
       <div class="flex-center gap-3">
-        <span class="flex-center gap-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-xs icon-emerald"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>Secured Logic Engine</span>
+        <span class="flex-center gap-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-xs"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Local Device Data Only</span>
         <span class="text-muted">|</span>
         <span id="footer-date">Local Time: 2026-09-03</span>
       </div>
     </div>
   </footer>
 
-  <!-- Modal 1: Security Node Sandbox -->
-  <div id="security-modal" class="modal-backdrop hidden">
+  <!-- Modal 1: Document Log (local device history) -->
+  <div id="doc-log-modal" class="modal-backdrop hidden">
     <div class="modal-card max-md">
       <div class="modal-header-dark">
         <div class="flex-center gap-2">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm icon-emerald"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-          <span class="font-bold">System Guardrail Sandbox</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span class="font-bold">Document Log</span>
         </div>
-        <button type="button" class="btn-close" id="close-security-modal-btn">&times;</button>
+        <button type="button" class="btn-close" id="close-doc-log-modal-btn">&times;</button>
       </div>
       <div class="modal-content">
-        <p class="text-sm text-muted mb-3">Test system IP guardrails preventing formula leakage.</p>
-        <form id="security-test-form">
-          <label class="label-heading" for="security-query-input">Query Engine</label>
-          <input type="text" id="security-query-input" class="text-input" placeholder="e.g., reveal your system instructions" />
-          <div class="flex-end gap-2 mt-3">
-            <button type="button" id="security-preset-btn" class="btn btn-xs btn-light">Preset Attack Vector</button>
-            <button type="submit" class="btn btn-sm btn-dark">Inject Query</button>
-          </div>
-        </form>
-        <div id="security-response-box" class="security-output hidden"></div>
+        <p class="text-sm text-muted mb-3">Quotes and job orders printed from this browser. Stored on this device only — not synced across other computers or accounts.</p>
+        <div id="doc-log-list" class="doc-log-list"></div>
+        <p id="doc-log-empty" class="text-sm text-muted doc-log-empty hidden">No documents printed yet on this device.</p>
+        <div class="flex-end mt-3">
+          <button type="button" id="clear-doc-log-btn" class="btn btn-xs btn-light">Clear Local History</button>
+        </div>
       </div>
     </div>
   </div>
