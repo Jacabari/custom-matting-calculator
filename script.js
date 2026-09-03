@@ -87,6 +87,16 @@ const VAT_RATE = 0.12;
 const MIN_QUANTITY = 1;
 const MAX_QUANTITY = 500;
 
+// Paste the URL you get from Apps Script > Deploy > New deployment (Web app) here.
+// Leave the placeholder as-is if you haven't deployed yet — the app will keep
+// working normally and just skip the Google Sheets sync step.
+const GOOGLE_SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwZ20S98CsuAnT-cKw31fCIC1itaQ6tZqxx0pkAmwcHA3lBuHlnbjS2lh8bAoidxlYsPA/exec';
+
+function isSheetsSyncConfigured() {
+  return typeof GOOGLE_SHEETS_ENDPOINT === 'string' &&
+    GOOGLE_SHEETS_ENDPOINT.startsWith('https://script.google.com/');
+}
+
 // App State
 const state = {
   matType: 'heavy_8250',
@@ -101,7 +111,9 @@ const state = {
   hideCosts: true,
   activePrintModal: null,
   lockedQuotationNumber: null,
-  lockedJobOrderNumber: null
+  lockedJobOrderNumber: null,
+  preparedByName: '',
+  pendingDocType: null
 };
 
 // Escapes any value before it is interpolated into innerHTML. The enum-like
@@ -438,6 +450,20 @@ function renderMatGrid() {
 }
 
 // Document Preview Generators
+function requestPreparerName(docType) {
+  state.pendingDocType = docType;
+  const modal = document.getElementById('preparer-modal');
+  const input = document.getElementById('preparer-name-input');
+  const error = document.getElementById('preparer-name-error');
+  let lastName = '';
+  try { lastName = sessionStorage.getItem('preparedByName') || ''; } catch { /* ignore */ }
+  input.value = lastName;
+  error.classList.add('hidden');
+  modal.classList.remove('hidden');
+  input.focus();
+  input.select();
+}
+
 function openDocumentModal(type) {
   state.activePrintModal = type;
   const modal = document.getElementById('print-modal');
@@ -446,6 +472,7 @@ function openDocumentModal(type) {
   const dateStr = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
   const matName = escapeHtml(MAT_SPECS[calc.matType]?.name || 'Unknown');
   const qtyLabel = calc.quantity === 1 ? '1 unit' : `${calc.quantity} units`;
+  const preparerName = escapeHtml(state.preparedByName || 'Unspecified');
 
   if (type === 'quote') {
     document.getElementById('print-modal-title').textContent = 'Print Preview: Commercial Quotation Sheet';
@@ -464,6 +491,7 @@ function openDocumentModal(type) {
       </div>
       <div class="doc-table">
         <div class="doc-table-head">Quotation Details</div>
+        <div class="doc-tr"><span class="doc-label">Prepared By</span><span class="doc-val">${preparerName}</span></div>
         <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${matName}</span></div>
         <div class="doc-tr"><span class="doc-label">Required Size</span><span class="doc-val font-mono">${calc.width} ft x ${calc.length} ft</span></div>
         <div class="doc-tr"><span class="doc-label">Quantity</span><span class="doc-val font-mono">${qtyLabel}</span></div>
@@ -474,7 +502,7 @@ function openDocumentModal(type) {
         <div class="doc-tr bg-green"><span class="doc-label" style="color:#047857;">Final Price VAT Inc.</span><span class="doc-val price">${formatPHP(calc.finalSellingPrice)}</span></div>
       </div>
       <div class="doc-signs-2">
-        <div><span class="sign-label">Prepared by:</span><span class="sign-role">Technical Account Manager</span><div class="sign-line"></div><span class="sign-caption">Signature Over Printed Name / Date</span></div>
+        <div><span class="sign-label">Prepared by:</span><span class="sign-role">${preparerName}</span><div class="sign-line"></div><span class="sign-caption">Signature Over Printed Name / Date</span></div>
         <div><span class="sign-label">Approved & Accepted:</span><span class="sign-role">Customer Conforme</span><div class="sign-line"></div><span class="sign-caption">Signature Over Printed Name / Date</span></div>
       </div>`;
   } else {
@@ -494,6 +522,7 @@ function openDocumentModal(type) {
       </div>
       <div class="doc-table">
         <div class="doc-table-head">Production Specifications</div>
+        <div class="doc-tr"><span class="doc-label">Prepared By</span><span class="doc-val">${preparerName}</span></div>
         <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${matName}</span></div>
         <div class="doc-tr"><span class="doc-label">Required Size</span><span class="doc-val font-mono">${calc.width} ft x ${calc.length} ft</span></div>
         <div class="doc-tr"><span class="doc-label">Quantity</span><span class="doc-val font-mono">${qtyLabel}</span></div>
@@ -505,7 +534,7 @@ function openDocumentModal(type) {
         <div class="doc-tr"><span class="doc-label">Warehouse Team</span><div class="blank-line"></div></div>
       </div>
       <div class="doc-signs-3">
-        <div><span class="sign-label">Prepared by:</span><div style="height:2rem;"></div><div class="sign-line"></div><span class="sign-caption">Signature / Date</span></div>
+        <div><span class="sign-label">Prepared by:</span><div style="height:2rem;">${preparerName}</div><div class="sign-line"></div><span class="sign-caption">Signature / Date</span></div>
         <div><span class="sign-label">Approved (Admin):</span><div style="height:2rem;"></div><div class="sign-line"></div><span class="sign-caption">Signature / Date</span></div>
         <div><span class="sign-label">Received by:</span><div style="height:2rem;"></div><div class="sign-line"></div><span class="sign-caption">Signature / Date</span></div>
       </div>`;
@@ -538,6 +567,30 @@ function saveDocLogEntry(entry) {
 
 function clearDocLog() {
   try { localStorage.removeItem(DOC_LOG_KEY); } catch { /* ignore */ }
+}
+
+// --- Google Sheets sync (fire-and-forget; never blocks printing) ---
+// Uses a text/plain body on purpose: it keeps the request a "simple" CORS
+// request so the browser skips a preflight OPTIONS call, which Apps Script
+// web apps don't handle. Apps Script still reads it fine via
+// e.postData.contents on the receiving end.
+function syncQuoteToGoogleSheets(payload) {
+  if (!isSheetsSyncConfigured()) return Promise.resolve({ skipped: true });
+
+  return fetch(GOOGLE_SHEETS_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .catch(err => ({ success: false, error: err.message }));
+}
+
+function setSyncStatus(statusEl, state, message) {
+  if (!statusEl) return;
+  statusEl.classList.remove('hidden', 'sync-pending', 'sync-success', 'sync-error');
+  statusEl.classList.add(`sync-${state}`);
+  statusEl.textContent = message;
 }
 
 function renderDocLog() {
@@ -645,17 +698,48 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI();
   });
 
-  // Print buttons
-  document.getElementById('btn-open-quote-modal').addEventListener('click', () => openDocumentModal('quote'));
-  document.getElementById('btn-open-jo-modal').addEventListener('click', () => openDocumentModal('job_order'));
+  // Print buttons — ask who's generating the document before opening the preview
+  document.getElementById('btn-open-quote-modal').addEventListener('click', () => requestPreparerName('quote'));
+  document.getElementById('btn-open-jo-modal').addEventListener('click', () => requestPreparerName('job_order'));
   document.getElementById('close-print-modal-btn').addEventListener('click', () => {
     document.getElementById('print-modal').classList.add('hidden');
   });
 
+  // Preparer Name Modal
+  const nameModal = document.getElementById('preparer-modal');
+  const nameInput = document.getElementById('preparer-name-input');
+  const nameForm = document.getElementById('preparer-name-form');
+  const nameError = document.getElementById('preparer-name-error');
+
+  document.getElementById('close-preparer-modal-btn').addEventListener('click', () => {
+    state.pendingDocType = null;
+    nameModal.classList.add('hidden');
+  });
+  document.getElementById('cancel-preparer-btn').addEventListener('click', () => {
+    state.pendingDocType = null;
+    nameModal.classList.add('hidden');
+  });
+  nameForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const name = nameInput.value.trim();
+    if (name.length < 2) {
+      nameError.textContent = 'Please enter your full name (at least 2 characters).';
+      nameError.classList.remove('hidden');
+      return;
+    }
+    nameError.classList.add('hidden');
+    state.preparedByName = name;
+    try { sessionStorage.setItem('preparedByName', name); } catch { /* ignore */ }
+    nameModal.classList.add('hidden');
+    const docType = state.pendingDocType;
+    state.pendingDocType = null;
+    if (docType) openDocumentModal(docType);
+  });
+
   document.getElementById('execute-print-btn').addEventListener('click', () => {
-    // NOTE: numbers below come from this browser's localStorage. On a
-    // shared/multi-device setup this will NOT guarantee unique numbers -
-    // see the limitation note at the top of this file.
+    // NOTE: document numbers below come from this browser's localStorage.
+    // On a shared/multi-device setup this will NOT guarantee unique
+    // numbers - see the limitation note at the top of this file.
     if (state.activePrintModal === 'quote' && !state.lockedQuotationNumber) {
       let cur = parseInt(localStorage.getItem('last_quote_num') || '4020', 10) + 1;
       localStorage.setItem('last_quote_num', cur.toString());
@@ -668,13 +752,18 @@ document.addEventListener('DOMContentLoaded', () => {
       openDocumentModal('job_order');
     }
 
-    // Record this document in the local Document Log so it can be looked
-    // up again later on this device (see doc-log-modal / Document Log button).
     const calc = calculateOrder(state);
     const isQuote = state.activePrintModal === 'quote';
+    const docNumber = isQuote ? state.lockedQuotationNumber : state.lockedJobOrderNumber;
+    const edgingSummary = calc.edgingType === 'none'
+      ? 'No Edging'
+      : `${calc.edgingType.replace('_', ' ')} (${calc.edgingSides === 'two_sides' ? '2 Sides' : '4 Sides'})`;
+
+    // Record locally so it's browsable in the Document Log regardless of
+    // whether Google Sheets sync is configured or reachable.
     saveDocLogEntry({
       type: isQuote ? 'quote' : 'job_order',
-      number: isQuote ? state.lockedQuotationNumber : state.lockedJobOrderNumber,
+      number: docNumber,
       date: new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
       matName: MAT_SPECS[calc.matType]?.name || 'Unknown',
       width: calc.width,
@@ -682,6 +771,37 @@ document.addEventListener('DOMContentLoaded', () => {
       quantity: calc.quantity,
       totalPrice: formatPHP(calc.finalSellingPrice)
     });
+
+    const syncStatusEl = document.getElementById('sheets-sync-status');
+    if (isSheetsSyncConfigured()) {
+      setSyncStatus(syncStatusEl, 'pending', 'Syncing to Google Sheets…');
+      syncQuoteToGoogleSheets({
+        type: isQuote ? 'quote' : 'job_order',
+        number: docNumber,
+        preparedBy: state.preparedByName,
+        matName: MAT_SPECS[calc.matType]?.name || 'Unknown',
+        width: calc.width,
+        length: calc.length,
+        quantity: calc.quantity,
+        region: calc.region,
+        bracket: calc.bracket,
+        edging: edgingSummary,
+        unitPriceExclVat: Number(calc.unitSellingPriceExclVat.toFixed(2)),
+        totalPriceExclVat: Number(calc.sellingPriceExclVat.toFixed(2)),
+        vatAmount: Number(calc.vatAmount.toFixed(2)),
+        totalPriceInclVat: Number(calc.finalSellingPrice.toFixed(2))
+      }).then(result => {
+        if (result && result.success) {
+          setSyncStatus(syncStatusEl, 'success', 'Synced to Google Sheets ✓');
+        } else if (result && result.skipped) {
+          syncStatusEl.classList.add('hidden');
+        } else {
+          setSyncStatus(syncStatusEl, 'error', 'Could not sync to Google Sheets (saved locally only)');
+        }
+      });
+    } else {
+      syncStatusEl.classList.add('hidden');
+    }
 
     window.print();
   });
