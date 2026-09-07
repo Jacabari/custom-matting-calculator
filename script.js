@@ -1,67 +1,51 @@
 /**
- * Commercial Matting Estimator Engine
- * Single-file standalone vanilla script
- *
- * KNOWN LIMITATION (by design of a client-only app):
- * All pricing constants, margin brackets, and the calculation logic below
- * ship to and run entirely in the customer's browser. Anyone can open
- * DevTools / View Source and read exact costs and margins. There is no
- * client-side technique that can prevent this. If margin confidentiality
- * matters, move `calculateOrder()` and the constants above it behind a
- * server endpoint that accepts the order inputs and returns only the
- * computed price. The old "Security Node" keyword filter that used to
- * live here did not provide this protection (it only blocked certain
- * words in a text box while the real numbers stayed fully readable in
- * this file) and has been removed for that reason.
- *
- * Document numbering (quote/job order numbers) and the Document Log
- * below are stored in this browser's localStorage only. On a single
- * device that gives clean sequential numbers; across multiple
- * salespeople/devices it will NOT stay collision-free or in sync. Wire
- * `getNextDocNumber()` and `saveDocLogEntry()` to a shared backend
- * (database + API) before relying on this for multi-user operations.
+ * Commercial Matting Estimator & Pricing Calculator
+ * Pure Vanilla JavaScript (ES6) Engine
+ * Implements Rules 1-7, Base Material Costs, Adhesive Bonding (+5% Waste),
+ * Edging Reducers, and Philippine Regional Margin Brackets.
  */
 
+// 1. Data Specifications & Constants
 const MAT_SPECS = {
   heavy_8250: {
     id: 'heavy_8250',
     name: 'Heavy Traffic 8250',
     standardWidth: 3,
     standardLength: 20,
-    costPerRoll: 27823.00,
-    costPerSqFt: 463.72
+    costPerSqFt: 535.30,
+    desc: 'Unbacked open vinyl z-web construction for extreme exterior entrances'
   },
   medium_6050: {
     id: 'medium_6050',
     name: 'Medium Traffic 6050',
     standardWidth: 3,
     standardLength: 78,
-    costPerRoll: 54729.59,
-    costPerSqFt: 233.89
+    costPerSqFt: 279.18,
+    desc: 'Backed vinyl coiled loop matting trapping dirt and moisture indoors'
   },
   carpet_3100_3: {
     id: 'carpet_3100_3',
     name: 'Carpet 3100 (3 ft Width)',
     standardWidth: 3,
     standardLength: 60,
-    costPerRoll: 48847.99,
-    costPerSqFt: 271.38
+    costPerSqFt: 333.89,
+    desc: 'Dual-fiber ribbed carpet matting in 3 ft master roll format'
   },
   carpet_3100_4: {
     id: 'carpet_3100_4',
     name: 'Carpet 3100 (4 ft Width)',
     standardWidth: 4,
     standardLength: 60,
-    costPerRoll: 58112.00,
-    costPerSqFt: 242.13
+    costPerSqFt: 302.84,
+    desc: 'Dual-fiber ribbed carpet matting in 4 ft wide architectural roll'
   },
   wet_area_3: {
     id: 'wet_area_3',
     name: 'Wet Area Mat',
     standardWidth: 3,
     standardLength: 40,
-    costPerRoll: 36776.15,
-    costPerSqFt: 306.47
+    costPerSqFt: 381.58,
+    desc: 'Rubber-backed wet drainage matting. Rule 7 strictly applies.'
   }
 };
 
@@ -71,143 +55,213 @@ const COST_PERCENTAGES = {
 };
 
 const BRACKET_LABELS = {
-  SRP: 'Standard Selling Price',
-  B1: 'Bracket 1',
-  B2: 'Bracket 2',
-  B3: 'Bracket 3',
-  B4: 'Bracket 4'
+  SRP: 'Suggested Retail Price (SRP)',
+  B1: 'Bracket 1 (B1)',
+  B2: 'Bracket 2 (B2)',
+  B3: 'Bracket 3 (B3)',
+  B4: 'Bracket 4 (B4)'
 };
 
+// Application & Material Parameters
 const ADHESIVE_COST_PER_LN_FT = 18.62;
-const ADHESIVE_WASTE_FACTOR = 1.05;
+const ADHESIVE_WASTE_FACTOR = 1.05; // +5% waste factor
 const EDGING_LOW_PROFILE_COST = 70.79;
 const EDGING_HIGH_PROFILE_COST = 204.51;
-const LABOR_COST_PER_UNIT = 100.00;
-const VAT_RATE = 0.12;
+const FIXED_LABOR_COST = 100.00; // ₱100.00 per job order
+const VAT_RATE = 0.12; // Mandatory 12% Philippine VAT
 const MIN_QUANTITY = 1;
-const MAX_QUANTITY = 500;
+const MAX_QUANTITY = 1000;
 
-// Paste the URL you get from Apps Script > Deploy > New deployment (Web app) here.
-// Leave the placeholder as-is if you haven't deployed yet — the app will keep
-// working normally and just skip the Google Sheets sync step.
-const GOOGLE_SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwZ20S98CsuAnT-cKw31fCIC1itaQ6tZqxx0pkAmwcHA3lBuHlnbjS2lh8bAoidxlYsPA/exec';
-
-function isSheetsSyncConfigured() {
-  return typeof GOOGLE_SHEETS_ENDPOINT === 'string' &&
-    GOOGLE_SHEETS_ENDPOINT.startsWith('https://script.google.com/');
-}
-
-// App State
+// Application State
 const state = {
   matType: 'heavy_8250',
   width: 5,
   length: 12,
   quantity: 1,
   useAdhesive: true,
-  edgingSides: 'four_sides',
-  edgingType: 'low_profile',
-  region: 'Luzon',
-  bracket: 'SRP',
-  hideCosts: true,
-  activePrintModal: null,
-  lockedQuotationNumber: null,
-  lockedJobOrderNumber: null,
+  edgingSides: 'four_sides', // 'none' | 'two_sides' | 'four_sides'
+  edgingType: 'low_profile', // 'none' | 'low_profile' | 'high_profile'
+  region: 'Luzon',           // 'Luzon' | 'VisMin'
+  bracket: 'SRP',            // 'SRP' | 'B1' | 'B2' | 'B3' | 'B4'
+  hideCosts: false,
+  isAdmin: false,            // Controls access to internal cost breakdowns and admin settings
   preparedByName: '',
-  pendingDocType: null
+  lockedDocNumber: null,
+  activeDocType: null
 };
 
-// Escapes any value before it is interpolated into innerHTML. The enum-like
-// fields in this app (mat names, region codes, etc.) don't currently contain
-// user-typed text, but keeping every dynamic string escaped means adding a
-// free-text field later (e.g. a customer name on the quote) can't quietly
-// turn into an HTML/script injection point.
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+// Administrative Authentication
+const ADMIN_PASSWORD = 'grb123';
+let pendingAdminAction = null;
+
+// 2. Format Currency (PHP)
+function formatPHP(num) {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(num || 0);
 }
 
-// Math Engine
-// Pure function: reads only its `input` argument, never touches the DOM.
-// Keeping it pure means it can be unit-tested or later moved server-side
-// without dragging any rendering code along with it.
+// 3. Calculation Core Engine
 function calculateOrder(input) {
   const { matType, width, length, quantity, edgingType, edgingSides, region, bracket, useAdhesive } = input;
   const spec = MAT_SPECS[matType];
 
   const res = {
     matType, width, length, quantity, edgingType, edgingSides, region, bracket, useAdhesive,
-    cols: 0, rows: 0, roundedLength: 0, seamAdhesiveLength: 0,
-    edgingLength: 0, edgingAdhesiveLength: 0, totalAdhesiveLength: 0, adhesiveLengthWithWaste: 0,
+    cols: 1, rows: 1, roundedLength: 0, activeRule: '', ruleDescription: '',
+    seamAdhesiveLength: 0, edgingLength: 0, edgingAdhesiveLength: 0,
+    totalAdhesiveLength: 0, adhesiveLengthWithWaste: 0,
+    
     // Per single unit
-    unitMattingCost: 0, unitAdhesiveCost: 0, unitEdgingCost: 0, unitLaborCost: LABOR_COST_PER_UNIT,
-    unitProductionCost: 0, unitSellingPriceExclVat: 0,
-    // Across the full order quantity
-    mattingCost: 0, adhesiveCost: 0, edgingCost: 0, laborCost: 0,
-    totalCost: 0, costPercentage: COST_PERCENTAGES[region]?.[bracket],
+    unitMattingCost: 0, unitSeamAdhesiveCost: 0, unitEdgingCost: 0, unitEdgingAdhesiveCost: 0,
+    unitProductionCost: 0, unitSellingPriceExclVat: 0, unitSellingPriceIncVat: 0,
+    
+    // Across full order quantity
+    mattingCost: 0, seamAdhesiveCost: 0, edgingCost: 0, edgingAdhesiveCost: 0, adhesiveCost: 0,
+    laborCost: FIXED_LABOR_COST,
+    totalCost: 0,
+    costPercentage: COST_PERCENTAGES[region]?.[bracket] || 0.73,
     sellingPriceExclVat: 0, vatAmount: 0, finalSellingPrice: 0,
     isValid: true, errorMessage: ''
   };
 
   if (!spec) {
-    res.isValid = false; res.errorMessage = 'Invalid mat type.'; return res;
+    res.isValid = false; res.errorMessage = 'Invalid mat type selected.'; return res;
   }
   if (width <= 0 || length <= 0 || isNaN(width) || isNaN(length)) {
-    res.isValid = false; res.errorMessage = 'Width and length must be greater than zero.'; return res;
+    res.isValid = false; res.errorMessage = 'Width and length must be numbers greater than zero.'; return res;
   }
   if (!Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity < MIN_QUANTITY) {
-    res.isValid = false; res.errorMessage = `Quantity must be a whole number of at least ${MIN_QUANTITY} unit.`; return res;
+    res.isValid = false; res.errorMessage = `Quantity must be an integer of at least ${MIN_QUANTITY}.`; return res;
   }
   if (quantity > MAX_QUANTITY) {
-    res.isValid = false; res.errorMessage = `Quantity cannot exceed ${MAX_QUANTITY} units in a single order. Split into multiple orders.`; return res;
+    res.isValid = false; res.errorMessage = `Quantity cannot exceed ${MAX_QUANTITY} units.`; return res;
   }
 
+  // Rule 7: Wet Area Mat Special Exception
   if (matType === 'wet_area_3') {
     if (width > 3) {
-      res.isValid = false; res.errorMessage = 'Wet Area Mat cannot exceed 3 ft width limit.'; return res;
+      res.isValid = false;
+      res.errorMessage = 'Rule 7: Wet Area Mat cannot exceed 3 ft width limit.';
+      return res;
     }
     if (length > 10) {
-      res.isValid = false; res.errorMessage = 'Wet Area Mat custom sizing cannot exceed 10 ft length limit.'; return res;
+      res.isValid = false;
+      res.errorMessage = 'Rule 7: Wet Area Mat custom length cannot exceed 10 ft limit.';
+      return res;
     }
-    res.roundedLength = length <= 2 ? 2 : length <= 4 ? 4 : length <= 8 ? 8 : 10;
-    res.cols = 1; res.rows = 1; res.seamAdhesiveLength = 0;
+
+    // Allowable standard chargeable lengths strictly: 2 ft, 4 ft, 8 ft, 10 ft
+    const allowableLengths = [2, 4, 8, 10];
+    let charged = 10;
+    for (const std of allowableLengths) {
+      if (length <= std) {
+        charged = std;
+        break;
+      }
+    }
+    res.roundedLength = charged;
+    res.cols = 1;
+    res.rows = 1;
+    res.activeRule = 'Rule 7: Wet Area Mat Exception (3 ft x 40 ft)';
+    res.ruleDescription = `Custom length of ${length.toFixed(1)} ft is rounded UP to ${charged}.0 ft chargeable standard cut. Leftover cuts are non-reusable. No seam adhesive or perimeter edging applied.`;
+
+    // Charged full standard width (3 ft) * charged length
     res.unitMattingCost = (3 * res.roundedLength) * spec.costPerSqFt;
+
+    // Zero adhesive & edging per Rule 7
+    res.seamAdhesiveLength = 0;
+    res.edgingLength = 0;
+    res.edgingAdhesiveLength = 0;
   } else {
+    // Standard Matting: Rules 1 to 6
     res.cols = Math.ceil(width / spec.standardWidth);
     res.rows = Math.ceil(length / spec.standardLength);
+
+    const isWidthExceeded = width > spec.standardWidth;
+    const isLengthExceeded = length > spec.standardLength;
+
+    // Seam calculations
     const longSeams = res.cols > 1 ? (res.cols - 1) * length : 0;
     const transSeams = res.rows > 1 ? (res.rows - 1) * width : 0;
-    res.seamAdhesiveLength = longSeams + transSeams;
+    res.seamAdhesiveLength = useAdhesive ? (longSeams + transSeams) : 0;
+
+    // Edging calculations
+    if (edgingType === 'none' || edgingSides === 'none') {
+      res.edgingLength = 0;
+    } else if (edgingSides === 'four_sides') {
+      res.edgingLength = (2 * width) + (2 * length);
+    } else if (edgingSides === 'two_sides') {
+      res.edgingLength = 2 * width;
+    }
+    res.edgingAdhesiveLength = (useAdhesive && edgingType !== 'none') ? res.edgingLength : 0;
+
+    // Rule categorization
+    if (isWidthExceeded && isLengthExceeded) {
+      if (edgingSides === 'four_sides' && edgingType !== 'none') {
+        res.activeRule = 'Rule 5: Oversized Width & Length (Four Sides Edging)';
+        res.ruleDescription = `Area exceeds roll width (${spec.standardWidth} ft) & length (${spec.standardLength} ft). Longitudinal & transverse seams bonded. Perimeter edging on all 4 sides.`;
+      } else if (edgingSides === 'two_sides' && edgingType !== 'none') {
+        res.activeRule = 'Rule 6: Oversized Width & Length (Two Sides Edging - Width Only)';
+        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along seams. Edging applied strictly along both width edges (${(2 * width).toFixed(1)} ft).`;
+      } else {
+        res.activeRule = 'Rule 4: Oversized Width & Length (No Edging)';
+        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along length and width seams. No perimeter edging bevel.`;
+      }
+    } else if (isWidthExceeded) {
+      if (edgingSides === 'four_sides' && edgingType !== 'none') {
+        res.activeRule = 'Rule 2: Custom Width Exceeds Standard Size (Four Sides Edging)';
+        res.ruleDescription = `Width (${width.toFixed(1)} ft) exceeds roll width (${spec.standardWidth} ft). Seam adhesive applied along ${length.toFixed(1)} ft join. Edging applied on all 4 outer sides.`;
+      } else if (edgingSides === 'two_sides' && edgingType !== 'none') {
+        res.activeRule = 'Rule 3: Custom Width Exceeds Standard Size (Two Sides Edging - Width Only)';
+        res.ruleDescription = `Width exceeds roll width. Panels bonded along seam. Edging applied along the 2 width sides only (${(2 * width).toFixed(1)} ft).`;
+      } else {
+        res.activeRule = 'Rule 1: Custom Width Exceeds Standard Size (No Edging)';
+        res.ruleDescription = `Width exceeds roll width. Panels bonded with seam adhesive along joining length. No perimeter edging bevel applied.`;
+      }
+    } else {
+      res.activeRule = 'Standard Roll Cut';
+      res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Single seamless continuous panel.`;
+    }
+
     res.unitMattingCost = width * length * spec.costPerSqFt;
   }
 
-  res.edgingLength = edgingSides === 'four_sides' ? 2 * width + 2 * length : edgingSides === 'two_sides' ? 2 * width : 0;
-  res.edgingAdhesiveLength = res.edgingLength;
-  res.totalAdhesiveLength = useAdhesive ? (res.seamAdhesiveLength + res.edgingAdhesiveLength) : 0;
-  res.adhesiveLengthWithWaste = useAdhesive ? (res.totalAdhesiveLength * ADHESIVE_WASTE_FACTOR) : 0;
+  // Adhesive calculations with +5% waste factor
+  res.totalAdhesiveLength = res.seamAdhesiveLength + res.edgingAdhesiveLength;
+  res.adhesiveLengthWithWaste = res.totalAdhesiveLength * ADHESIVE_WASTE_FACTOR;
 
+  // Single unit accessory costs
   const edgingRate = edgingType === 'low_profile' ? EDGING_LOW_PROFILE_COST : edgingType === 'high_profile' ? EDGING_HIGH_PROFILE_COST : 0;
   res.unitEdgingCost = res.edgingLength * edgingRate;
-  res.unitAdhesiveCost = useAdhesive ? (res.adhesiveLengthWithWaste * ADHESIVE_COST_PER_LN_FT) : 0;
+  res.unitSeamAdhesiveCost = res.seamAdhesiveLength * ADHESIVE_WASTE_FACTOR * ADHESIVE_COST_PER_LN_FT;
+  res.unitEdgingAdhesiveCost = res.edgingAdhesiveLength * ADHESIVE_WASTE_FACTOR * ADHESIVE_COST_PER_LN_FT;
+  res.unitProductionCost = res.unitMattingCost + res.unitSeamAdhesiveCost + res.unitEdgingCost + res.unitEdgingAdhesiveCost;
 
-  res.unitProductionCost = res.unitMattingCost + res.unitAdhesiveCost + res.unitEdgingCost + res.unitLaborCost;
-  res.unitSellingPriceExclVat = res.costPercentage ? (res.unitProductionCost / res.costPercentage) : 0;
-
-  // Scale every cost line up by order quantity
+  // Order totals
   res.mattingCost = res.unitMattingCost * quantity;
-  res.adhesiveCost = res.unitAdhesiveCost * quantity;
+  res.seamAdhesiveCost = res.unitSeamAdhesiveCost * quantity;
   res.edgingCost = res.unitEdgingCost * quantity;
-  res.laborCost = res.unitLaborCost * quantity;
-  res.totalCost = res.unitProductionCost * quantity;
-  res.sellingPriceExclVat = res.unitSellingPriceExclVat * quantity;
-  res.vatAmount = res.sellingPriceExclVat * VAT_RATE;
-  res.finalSellingPrice = res.sellingPriceExclVat * (1 + VAT_RATE);
+  res.edgingAdhesiveCost = res.unitEdgingAdhesiveCost * quantity;
+  res.adhesiveCost = res.seamAdhesiveCost + res.edgingAdhesiveCost;
+  res.laborCost = FIXED_LABOR_COST; // Fixed ₱100.00 per job order
 
-  // Order-wide material quantities (per-unit figure x quantity), useful for
-  // procurement even though the blueprint below only pictures one unit.
+  // Direct Total Cost
+  res.totalCost = res.mattingCost + res.seamAdhesiveCost + res.edgingCost + res.edgingAdhesiveCost + res.laborCost;
+
+  // Commercial Pricing: Selling Price = (Final Total Cost / Cost Percentage) * 1.12
+  if (res.costPercentage > 0) {
+    res.sellingPriceExclVat = res.totalCost / res.costPercentage;
+    res.vatAmount = res.sellingPriceExclVat * VAT_RATE;
+    res.finalSellingPrice = res.sellingPriceExclVat * (1 + VAT_RATE);
+
+    res.unitSellingPriceExclVat = res.sellingPriceExclVat / quantity;
+    res.unitSellingPriceIncVat = res.finalSellingPrice / quantity;
+  }
+
   res.orderAdhesiveLength = res.adhesiveLengthWithWaste * quantity;
   res.orderEdgingLength = res.edgingLength * quantity;
   res.orderSquareFeet = width * length * quantity;
@@ -215,43 +269,207 @@ function calculateOrder(input) {
   return res;
 }
 
-function formatPHP(num) {
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 }).format(num);
+// 4. Blueprint Canvas Rendering (Dynamic SVG)
+function renderBlueprint(calc) {
+  const container = document.getElementById('blueprint-canvas-container');
+  const scaleTag = document.getElementById('blueprint-scale-tag');
+
+  if (!calc.isValid || calc.width <= 0 || calc.length <= 0) {
+    scaleTag.textContent = 'Scale: N/A';
+    container.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px; padding:2rem 0;">Dimension constraint prevents layout preview</div>';
+    return;
+  }
+
+  const spec = MAT_SPECS[calc.matType];
+  const physLen = calc.matType === 'wet_area_3' ? calc.roundedLength : calc.length;
+  const physWid = calc.matType === 'wet_area_3' ? 3 : calc.width;
+
+  const pad = 35;
+  const scale = Math.min((380 - 2 * pad) / physWid, (260 - 2 * pad) / physLen, 35);
+  scaleTag.textContent = `Scale: 1 ft = ${Math.round(scale)}px`;
+
+  const svgW = physWid * scale + 2 * pad;
+  const svgH = physLen * scale + 2 * pad;
+  const w = physWid * scale;
+  const h = physLen * scale;
+  const edgingColor = '#00508C';
+
+  let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
+    <defs>
+      <pattern id="waste-stripe" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="0" x2="0" y2="8" stroke="#fca5a5" stroke-width="1.5" />
+      </pattern>
+    </defs>
+    <!-- Base Canvas -->
+    <rect x="${pad}" y="${pad}" width="${w}" height="${h}" fill="#cbd5e1" stroke="#94a3b8" stroke-width="2" rx="3" />`;
+
+  if (calc.matType === 'wet_area_3') {
+    // Actual requested customer area
+    svg += `<rect x="${pad}" y="${pad}" width="${calc.width * scale}" height="${calc.length * scale}" fill="#94a3b8" stroke="#64748b" stroke-width="1" />`;
+    
+    // Discarded charged cut strips
+    if (calc.width < 3) {
+      svg += `<rect x="${pad + calc.width * scale}" y="${pad}" width="${(3 - calc.width) * scale}" height="${physLen * scale}" fill="url(#waste-stripe)" opacity="0.6" />`;
+    }
+    if (calc.length < calc.roundedLength) {
+      svg += `<rect x="${pad}" y="${pad + calc.length * scale}" width="${calc.width * scale}" height="${(calc.roundedLength - calc.length) * scale}" fill="url(#waste-stripe)" opacity="0.6" />`;
+    }
+  } else {
+    // Longitudinal Seams
+    for (let c = 1; c < calc.cols; c++) {
+      const cx = pad + c * spec.standardWidth * scale;
+      svg += `<line x1="${cx}" y1="${pad}" x2="${cx}" y2="${pad + h}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4" />`;
+    }
+    // Transverse Seams
+    for (let r = 1; r < calc.rows; r++) {
+      const cy = pad + r * spec.standardLength * scale;
+      svg += `<line x1="${pad}" y1="${cy}" x2="${pad + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4" />`;
+    }
+
+    // Edging Border Visualization
+    if (calc.edgingType !== 'none') {
+      if (calc.edgingSides === 'four_sides' || calc.edgingSides === 'two_sides') {
+        svg += `<rect x="${pad - 2}" y="${pad - 4}" width="${w + 4}" height="5" fill="${edgingColor}" />
+                <rect x="${pad - 2}" y="${pad + h - 1}" width="${w + 4}" height="5" fill="${edgingColor}" />`;
+      }
+      if (calc.edgingSides === 'four_sides') {
+        svg += `<rect x="${pad - 4}" y="${pad - 2}" width="5" height="${h + 4}" fill="${edgingColor}" />
+                <rect x="${pad + w - 1}" y="${pad - 2}" width="5" height="${h + 4}" fill="${edgingColor}" />`;
+      }
+    }
+  }
+
+  // Dimension Callouts
+  svg += `<line x1="${pad}" y1="${pad - 14}" x2="${pad + w}" y2="${pad - 14}" stroke="#64748b" stroke-width="1"/>
+          <text x="${pad + w / 2}" y="${pad - 18}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#334155">${calc.width} ft</text>
+          <line x1="${pad - 14}" y1="${pad}" x2="${pad - 14}" y2="${pad + h}" stroke="#64748b" stroke-width="1"/>
+          <text x="${pad - 18}" y="${pad + h / 2}" text-anchor="middle" transform="rotate(-90 ${pad - 18} ${pad + h / 2})" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#334155">${calc.length} ft</text>
+          <text x="${pad + w / 2}" y="${pad + h / 2 + 4}" text-anchor="middle" font-family="Montserrat, sans-serif" font-size="9" font-weight="700" fill="#1e293b">${calc.matType === 'wet_area_3' ? `Charged 3.0 x ${calc.roundedLength}.0 ft` : `${calc.cols} x ${calc.rows} Panels`}</text>
+  </svg>`;
+
+  container.innerHTML = svg;
+
+  // Legends
+  document.getElementById('legend-seam-text').textContent = `Adhesive Seam (${calc.seamAdhesiveLength.toFixed(1)} ft)`;
+  const edgeLeg = document.getElementById('legend-edging-item');
+  if (calc.edgingType !== 'none' && calc.matType !== 'wet_area_3') {
+    edgeLeg.classList.remove('hidden');
+    document.getElementById('legend-edging-swatch').style.backgroundColor = edgingColor;
+    document.getElementById('legend-edging-text').textContent = `${calc.edgingType.replace('_', ' ')} (${calc.edgingLength.toFixed(1)} ft)`;
+  } else {
+    edgeLeg.classList.add('hidden');
+  }
+
+  const wasteLeg = document.getElementById('legend-waste-item');
+  const hasWaste = calc.matType === 'wet_area_3' && (calc.width < 3 || calc.length < calc.roundedLength);
+  wasteLeg.classList.toggle('hidden', !hasWaste);
 }
 
-// UI Updater
+// 5. Render Mat Selection Buttons
+function renderMatGrid() {
+  const grid = document.getElementById('mat-type-grid');
+  grid.innerHTML = '';
+
+  Object.values(MAT_SPECS).forEach(spec => {
+    const isSelected = state.matType === spec.id;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `mat-btn ${isSelected ? 'selected' : ''}`;
+    btn.setAttribute('data-id', spec.id);
+
+    // Hide internal base cost rate unless authenticated as administrator
+    const costHtml = state.isAdmin ? `
+      <div class="mat-btn-cost">
+        <span class="text-xs text-muted">Base Cost / Sq. Ft:</span>
+        <span class="mat-btn-rate">${formatPHP(spec.costPerSqFt)}</span>
+      </div>` : '';
+
+    btn.innerHTML = `
+      <div class="mat-btn-head">
+        <div>
+          <span class="mat-btn-name">${spec.name}</span>
+          <span class="mat-btn-dim">${spec.standardWidth} ft &times; ${spec.standardLength} ft Master Roll</span>
+        </div>
+        ${isSelected ? '<span class="check-badge">&check;</span>' : ''}
+      </div>
+      ${costHtml}
+    `;
+
+    btn.addEventListener('click', () => {
+      state.matType = spec.id;
+      if (spec.id === 'wet_area_3') {
+        state.width = 3;
+        state.length = 4;
+        state.edgingSides = 'none';
+        state.edgingType = 'none';
+        state.useAdhesive = false;
+      } else {
+        if (state.width > 20) state.width = spec.standardWidth;
+        if (state.length > 100) state.length = 12;
+        if (state.edgingSides === 'none') {
+          state.edgingSides = 'four_sides';
+          state.edgingType = 'low_profile';
+        }
+        state.useAdhesive = true;
+      }
+      document.getElementById('width-number-input').value = state.width;
+      document.getElementById('width-range-input').value = state.width;
+      document.getElementById('length-number-input').value = state.length;
+      document.getElementById('length-range-input').value = state.length;
+      updateUI();
+    });
+
+    grid.appendChild(btn);
+  });
+}
+
+// 6. UI Synchronization & Update
 function updateUI() {
   const calc = calculateOrder(state);
   const spec = MAT_SPECS[state.matType];
+  const isWet = state.matType === 'wet_area_3';
 
-  // Mode Toggle
+  // Toggle Mode (Materials Only vs Commercial Pricing)
   const appTitle = document.getElementById('app-title');
   const appSubtitle = document.getElementById('app-subtitle');
   const modeBtn = document.getElementById('toggle-costs-mode-btn');
   const modeLabel = document.getElementById('mode-toggle-label');
-  const modeIcon = document.getElementById('mode-icon-container');
+
+  // Administrator status button update
+  const adminAuthBtn = document.getElementById('admin-auth-toggle-btn');
+  const adminAuthLabel = document.getElementById('admin-auth-label');
+  if (adminAuthBtn && adminAuthLabel) {
+    if (state.isAdmin) {
+      adminAuthBtn.className = 'btn btn-xs btn-admin-active';
+      adminAuthLabel.textContent = 'Admin Unlocked (Lock)';
+      adminAuthBtn.title = 'Administrator access active. Click to lock.';
+    } else {
+      adminAuthBtn.className = 'btn btn-xs btn-secondary';
+      adminAuthLabel.textContent = 'Admin Login';
+      adminAuthBtn.title = 'Administrator access for protected features';
+    }
+  }
 
   if (state.hideCosts) {
     appTitle.textContent = 'Custom Matting Material Estimator';
-    appSubtitle.textContent = 'Precision industrial material usage, adhesive bonding, and edging bevel estimator';
+    appSubtitle.textContent = 'Precision industrial material usage, butt joint adhesive bonding, and edging bevel estimator';
     modeBtn.className = 'btn btn-mode-toggle';
     modeLabel.textContent = 'Materials Only Mode';
-    modeIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-xs icon-emerald"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
   } else {
     appTitle.textContent = 'Custom Matting & Pricing Calculator';
     appSubtitle.textContent = 'Precision industrial manufacturing and commercial estimating engine';
     modeBtn.className = 'btn btn-mode-toggle active-pricing';
-    modeLabel.textContent = 'Show Commercial Costs';
-    modeIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-xs"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
+    modeLabel.textContent = 'Commercial Pricing Mode';
   }
 
-  // Mat Grid
+  // Refresh Mat Grid UI
   renderMatGrid();
 
-  // Slider bounds
+  // Range and Input Caps
+  const wNum = document.getElementById('width-number-input');
   const wRange = document.getElementById('width-range-input');
+  const lNum = document.getElementById('length-number-input');
   const lRange = document.getElementById('length-range-input');
-  const isWet = state.matType === 'wet_area_3';
 
   wRange.max = isWet ? '3' : '20';
   lRange.max = isWet ? '10' : '100';
@@ -261,7 +479,7 @@ function updateUI() {
   document.getElementById('length-max-label').textContent = isWet ? 'Max: 10.0 ft' : 'Max: 100.0 ft';
   document.getElementById('wet-area-notice-box').classList.toggle('hidden', !isWet);
 
-  // Errors
+  // Sizing Error Notice
   const errBox = document.getElementById('sizing-error-box');
   if (!calc.isValid && calc.errorMessage) {
     errBox.classList.remove('hidden');
@@ -270,58 +488,99 @@ function updateUI() {
     errBox.classList.add('hidden');
   }
 
-  // Segment buttons
+  // Active Rule Card
+  const ruleCard = document.getElementById('active-rule-card');
+  if (ruleCard) {
+    document.getElementById('active-rule-title').textContent = calc.activeRule;
+    document.getElementById('active-rule-desc').textContent = calc.ruleDescription;
+  }
+
+  // Accessory Buttons
   document.querySelectorAll('[data-adhesive]').forEach(btn => {
     btn.classList.toggle('active', (btn.dataset.adhesive === 'true') === state.useAdhesive);
+    btn.disabled = isWet;
   });
+
   document.querySelectorAll('[data-sides]').forEach(btn => {
-    const disabled = state.edgingType === 'none' && btn.dataset.sides !== 'none';
+    const disabled = isWet || (state.edgingType === 'none' && btn.dataset.sides !== 'none');
     btn.disabled = disabled;
-    btn.classList.toggle('active', state.edgingSides === btn.dataset.sides && state.edgingType !== 'none');
+    btn.classList.toggle('active', state.edgingSides === btn.dataset.sides && state.edgingType !== 'none' && !isWet);
   });
+
   document.querySelectorAll('[data-type]').forEach(btn => {
-    btn.classList.toggle('active', state.edgingType === btn.dataset.type);
+    btn.disabled = isWet;
+    btn.classList.toggle('active', state.edgingType === btn.dataset.type && !isWet);
   });
+
+  // Regional Pricing Buttons & Dropdown
   document.querySelectorAll('[data-region]').forEach(btn => {
     btn.classList.toggle('active', state.region === btn.dataset.region);
   });
   document.getElementById('bracket-select').value = state.bracket;
 
-  // Factor pill
-  document.getElementById('cost-factor-box').classList.toggle('hidden', state.hideCosts);
-  document.getElementById('cost-factor-display').textContent = `Cost Basis: ${(calc.costPercentage * 100).toFixed(0)}%`;
+  // Internal mathematical formula & cost basis percentage are hidden from public view
+  const costFactorBox = document.getElementById('cost-factor-box');
+  if (costFactorBox) {
+    costFactorBox.classList.toggle('hidden', !state.isAdmin);
+    document.getElementById('cost-factor-display').textContent = `Cost Basis: ${(calc.costPercentage * 100).toFixed(0)}%`;
+  }
 
-  // Render Blueprint
+  // Render SVG Blueprint
   renderBlueprint(calc);
 
-  // Summary Switch
-  document.getElementById('material-metrics-view').classList.toggle('hidden', !state.hideCosts);
-  document.getElementById('cost-breakdown-view').classList.toggle('hidden', state.hideCosts);
-  document.getElementById('summary-kicker').textContent = state.hideCosts ? 'Production Requisition' : 'Commercial Proposal';
-  document.getElementById('summary-title').textContent = state.hideCosts ? 'Material Requirements' : 'Estimate Pricing';
-  document.getElementById('summary-badge').textContent = state.hideCosts ? `${spec.standardWidth}ft stock roll` : `${state.region} / ${BRACKET_LABELS[state.bracket]}`;
+  // Summary Card Header and View Toggles
+  const summaryKicker = document.getElementById('summary-kicker');
+  const summaryTitle = document.getElementById('summary-title');
+  const summaryBadge = document.getElementById('summary-badge');
+  const matMetricsView = document.getElementById('material-metrics-view');
+  const costBreakdownView = document.getElementById('cost-breakdown-view');
+  const lockedNotice = document.getElementById('cost-breakdown-locked-notice');
 
   const qtyLabel = calc.quantity === 1 ? '1 unit' : `${calc.quantity} units`;
 
-  if (state.hideCosts) {
-    document.getElementById('mat-usage-dimensions').textContent = isWet ? `3.0 ft x ${calc.roundedLength}.0 ft` : `${calc.width.toFixed(1)} ft x ${calc.length.toFixed(1)} ft`;
-    document.getElementById('mat-usage-subtext').textContent = isWet
-      ? `Rounded to nearest standard roll segment | Qty: ${qtyLabel} (${calc.orderSquareFeet.toFixed(1)} sq. ft. total)`
-      : `${calc.cols} x ${calc.rows} panels per unit | Qty: ${qtyLabel} (${calc.orderSquareFeet.toFixed(1)} sq. ft. total)`;
-    document.getElementById('adhesive-usage-length').textContent = `${calc.orderAdhesiveLength.toFixed(1)} ln. ft.`;
-    document.getElementById('adhesive-usage-subtext').textContent = `Per unit: ${calc.adhesiveLengthWithWaste.toFixed(1)} ft (seams ${calc.seamAdhesiveLength.toFixed(1)} + edge ${calc.edgingLength.toFixed(1)}, +5% waste) x ${qtyLabel}`;
-    document.getElementById('edging-usage-length').textContent = calc.edgingType === 'none' ? 'No Edging Applied' : `${calc.orderEdgingLength.toFixed(1)} ln. ft.`;
-    document.getElementById('edging-usage-subtext').textContent = calc.edgingType === 'none' ? '' : `${calc.edgingType.replace('_', ' ')} on ${calc.edgingSides.replace('_', ' ')} | ${calc.edgingLength.toFixed(1)} ft/unit x ${qtyLabel}`;
+  if (!state.isAdmin) {
+    // Customer/Public view: Specifications and commercial proposal visible; itemized direct costs locked
+    summaryKicker.textContent = 'Commercial Proposal';
+    summaryTitle.textContent = 'Specifications & Proposal';
+    summaryBadge.textContent = 'Commercial Offer';
+    matMetricsView.classList.remove('hidden');
+    costBreakdownView.classList.add('hidden');
+    if (lockedNotice) lockedNotice.classList.remove('hidden');
   } else {
-    document.getElementById('cost-val-matting').textContent = formatPHP(calc.mattingCost);
-    document.getElementById('cost-label-adhesive').textContent = `Adhesive Compounds (${calc.orderAdhesiveLength.toFixed(1)} ft):`;
-    document.getElementById('cost-val-adhesive').textContent = formatPHP(calc.adhesiveCost);
-    document.getElementById('cost-val-edging').textContent = formatPHP(calc.edgingCost);
-    document.getElementById('cost-label-labor').textContent = `Manufacturing Labor (${qtyLabel}):`;
-    document.getElementById('cost-val-labor').textContent = formatPHP(calc.laborCost);
-    document.getElementById('cost-val-total').textContent = formatPHP(calc.totalCost);
+    // Authenticated Administrator view: Full visibility into direct cost breakdown or materials mode
+    summaryKicker.textContent = state.hideCosts ? 'Production Requisition' : 'Commercial Proposal';
+    summaryTitle.textContent = state.hideCosts ? 'Material Requirements' : 'Itemized Cost Breakdown';
+    summaryBadge.textContent = state.hideCosts ? `${spec.standardWidth} ft stock roll` : `${state.region} / ${state.bracket}`;
+    matMetricsView.classList.toggle('hidden', !state.hideCosts);
+    costBreakdownView.classList.toggle('hidden', state.hideCosts);
+    if (lockedNotice) lockedNotice.classList.add('hidden');
   }
 
+  // Update Material Metrics View (Public & Materials Mode)
+  document.getElementById('mat-usage-dimensions').textContent = isWet
+    ? `3.0 ft x ${calc.roundedLength}.0 ft`
+    : `${calc.width.toFixed(1)} ft x ${calc.length.toFixed(1)} ft`;
+  document.getElementById('mat-usage-subtext').textContent = isWet
+    ? `Rounded to allowable standard stock cut (3x${calc.roundedLength}) | Qty: ${qtyLabel} (${calc.orderSquareFeet.toFixed(1)} sq. ft. total)`
+    : `${calc.cols} x ${calc.rows} panels per unit | Qty: ${qtyLabel} (${calc.orderSquareFeet.toFixed(1)} sq. ft. total)`;
+  document.getElementById('adhesive-usage-length').textContent = `${calc.orderAdhesiveLength.toFixed(1)} ln. ft.`;
+  document.getElementById('adhesive-usage-subtext').textContent = `Per unit: ${calc.adhesiveLengthWithWaste.toFixed(1)} ft (seams: ${calc.seamAdhesiveLength.toFixed(1)} ft + edging: ${calc.edgingAdhesiveLength.toFixed(1)} ft)`;
+  document.getElementById('edging-usage-length').textContent = calc.edgingType === 'none' || isWet ? 'No Edging Applied' : `${calc.orderEdgingLength.toFixed(1)} ln. ft.`;
+  document.getElementById('edging-usage-subtext').textContent = calc.edgingType === 'none' || isWet
+    ? 'No border reducer specified'
+    : `${calc.edgingType.replace('_', ' ')} on ${calc.edgingSides.replace('_', ' ')} | ${calc.edgingLength.toFixed(1)} ft/unit x ${qtyLabel}`;
+
+  // Update Itemized Cost Breakdown View (Internal Admin)
+  document.getElementById('cost-val-matting').textContent = formatPHP(calc.mattingCost);
+  document.getElementById('cost-label-adhesive').textContent = `2. Seam Adhesive (${(calc.seamAdhesiveLength * ADHESIVE_WASTE_FACTOR * calc.quantity).toFixed(1)} ft):`;
+  document.getElementById('cost-val-adhesive').textContent = formatPHP(calc.seamAdhesiveCost);
+  document.getElementById('cost-val-edging').textContent = formatPHP(calc.edgingCost);
+  document.getElementById('cost-val-edging-adhesive').textContent = formatPHP(calc.edgingAdhesiveCost);
+  document.getElementById('cost-label-labor').textContent = `5. Fixed Labor Cost (${qtyLabel}):`;
+  document.getElementById('cost-val-labor').textContent = formatPHP(calc.laborCost);
+  document.getElementById('cost-val-total').textContent = formatPHP(calc.totalCost);
+
+  // Pricing Summary
   document.getElementById('price-quantity-display').textContent = qtyLabel;
   document.getElementById('price-unit-excl-vat').textContent = formatPHP(calc.unitSellingPriceExclVat);
   document.getElementById('price-excl-vat').textContent = formatPHP(calc.sellingPriceExclVat);
@@ -332,331 +591,180 @@ function updateUI() {
   document.getElementById('btn-open-jo-modal').disabled = !calc.isValid;
 }
 
-// Blueprint Visualizer
-function renderBlueprint(calc) {
-  const container = document.getElementById('blueprint-canvas-container');
-  const scaleTag = document.getElementById('blueprint-scale-tag');
-
-  if (!calc.isValid || calc.width <= 0 || calc.length <= 0) {
-    scaleTag.textContent = 'Scale: N/A';
-    container.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px;">No layout preview available</div>';
-    const unitNoteEl = document.getElementById('blueprint-unit-note');
-    if (unitNoteEl) unitNoteEl.textContent = '';
-    return;
-  }
-
-  const spec = MAT_SPECS[calc.matType];
-  const physLen = calc.matType === 'wet_area_3' ? calc.roundedLength : calc.length;
-  const physWid = calc.matType === 'wet_area_3' ? 3 : calc.width;
-  const unitNote = document.getElementById('blueprint-unit-note');
-  if (unitNote) {
-    unitNote.textContent = calc.quantity > 1
-      ? `Showing 1 of ${calc.quantity} identical units in this order`
-      : 'Showing the single unit in this order';
-  }
-
-  const pad = 35;
-  const scale = Math.min((380 - 2 * pad) / physWid, (260 - 2 * pad) / physLen, 35);
-  scaleTag.textContent = `Scale: 1 ft = ${Math.round(scale)}px`;
-
-  const svgW = physWid * scale + 2 * pad;
-  const svgH = physLen * scale + 2 * pad;
-  const w = physWid * scale;
-  const h = physLen * scale;
-  const edgingColor = calc.edgingType === 'low_profile' ? '#0ea5e9' : '#f59e0b';
-
-  let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
-    <defs>
-      <pattern id="diagonal-stripe" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-        <line x1="0" y1="0" x2="0" y2="8" stroke="#fca5a5" stroke-width="1.5" />
-      </pattern>
-    </defs>
-    <rect x="${pad}" y="${pad}" width="${w}" height="${h}" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2" rx="3" />`;
-
-  if (calc.matType === 'wet_area_3' && (calc.width < 3 || calc.length < calc.roundedLength)) {
-    svg += `<rect x="${pad}" y="${pad}" width="${calc.width * scale}" height="${calc.length * scale}" fill="#cbd5e1" stroke="#64748b" stroke-width="1" />
-      <rect x="${pad + calc.width * scale}" y="${pad}" width="${(3 - calc.width) * scale}" height="${physLen * scale}" fill="url(#diagonal-stripe)" opacity="0.5" />`;
-    if (calc.length < calc.roundedLength) {
-      svg += `<rect x="${pad}" y="${pad + calc.length * scale}" width="${calc.width * scale}" height="${(calc.roundedLength - calc.length) * scale}" fill="url(#diagonal-stripe)" opacity="0.5" />`;
-    }
-  }
-
-  if (calc.matType !== 'wet_area_3') {
-    for (let c = 1; c < calc.cols; c++) {
-      const cx = pad + c * spec.standardWidth * scale;
-      svg += `<line x1="${cx}" y1="${pad}" x2="${cx}" y2="${pad + h}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4" />`;
-    }
-    for (let r = 1; r < calc.rows; r++) {
-      const cy = pad + r * spec.standardLength * scale;
-      svg += `<line x1="${pad}" y1="${cy}" x2="${pad + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4" />`;
-    }
-  }
-
-  if (calc.edgingType !== 'none') {
-    if (calc.edgingSides === 'four_sides' || calc.edgingSides === 'two_sides') {
-      svg += `<rect x="${pad - 2}" y="${pad - 4}" width="${w + 4}" height="5" fill="${edgingColor}" />
-              <rect x="${pad - 2}" y="${pad + h - 1}" width="${w + 4}" height="5" fill="${edgingColor}" />`;
-    }
-    if (calc.edgingSides === 'four_sides') {
-      svg += `<rect x="${pad - 4}" y="${pad - 2}" width="5" height="${h + 4}" fill="${edgingColor}" />
-              <rect x="${pad + w - 1}" y="${pad - 2}" width="5" height="${h + 4}" fill="${edgingColor}" />`;
-    }
-  }
-
-  // Dimension labels
-  svg += `<line x1="${pad}" y1="${pad - 15}" x2="${pad + w}" y2="${pad - 15}" stroke="#64748b" stroke-width="1"/>
-          <text x="${pad + w / 2}" y="${pad - 18}" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#334155">${calc.width} ft</text>
-          <line x1="${pad - 15}" y1="${pad}" x2="${pad - 15}" y2="${pad + h}" stroke="#64748b" stroke-width="1"/>
-          <text x="${pad - 18}" y="${pad + h / 2}" text-anchor="middle" transform="rotate(-90 ${pad - 18} ${pad + h / 2})" font-family="monospace" font-size="10" font-weight="bold" fill="#334155">${calc.length} ft</text>
-          <text x="${pad + w / 2}" y="${pad + h / 2 + 4}" text-anchor="middle" font-family="sans-serif" font-size="9" font-weight="600" fill="#64748b">${calc.matType === 'wet_area_3' ? `3 x ${calc.roundedLength} Std` : `${calc.cols} x ${calc.rows} Panels`}</text>
-  </svg>`;
-
-  container.innerHTML = svg;
-
-  document.getElementById('legend-seam-text').textContent = `Adhesive Seam (${calc.seamAdhesiveLength.toFixed(1)} ft)`;
-  const edgeLeg = document.getElementById('legend-edging-item');
-  if (calc.edgingType !== 'none') {
-    edgeLeg.classList.remove('hidden');
-    document.getElementById('legend-edging-swatch').style.backgroundColor = edgingColor;
-    document.getElementById('legend-edging-text').textContent = `${calc.edgingType.replace('_', ' ')} (${calc.edgingLength.toFixed(1)} ft)`;
-  } else {
-    edgeLeg.classList.add('hidden');
-  }
-  document.getElementById('legend-waste-item').classList.toggle('hidden', !(calc.matType === 'wet_area_3' && (calc.width < 3 || calc.length < calc.roundedLength)));
-}
-
-// Mat Grid Generation
-function renderMatGrid() {
-  const grid = document.getElementById('mat-type-grid');
-  grid.innerHTML = '';
-  Object.values(MAT_SPECS).forEach(spec => {
-    const isSel = state.matType === spec.id;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `mat-btn ${isSel ? 'selected' : ''}`;
-    btn.innerHTML = `<span>${spec.name}</span>${isSel ? '<span class="check-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="icon icon-xs"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}`;
-    btn.addEventListener('click', () => {
-      state.matType = spec.id;
-      state.width = spec.id === 'wet_area_3' ? 3 : spec.standardWidth;
-      state.length = spec.id === 'wet_area_3' ? 4 : 10;
-      document.getElementById('width-number-input').value = state.width;
-      document.getElementById('width-range-input').value = state.width;
-      document.getElementById('length-number-input').value = state.length;
-      document.getElementById('length-range-input').value = state.length;
-      updateUI();
-    });
-    grid.appendChild(btn);
-  });
-}
-
-// Document Preview Generators
-function requestPreparerName(docType) {
-  state.pendingDocType = docType;
-  const modal = document.getElementById('preparer-modal');
-  const input = document.getElementById('preparer-name-input');
-  const error = document.getElementById('preparer-name-error');
-  let lastName = '';
-  try { lastName = sessionStorage.getItem('preparedByName') || ''; } catch { /* ignore */ }
-  input.value = lastName;
-  error.classList.add('hidden');
-  modal.classList.remove('hidden');
-  input.focus();
-  input.select();
-}
-
-function openDocumentModal(type) {
-  state.activePrintModal = type;
-  const modal = document.getElementById('print-modal');
-  const paper = document.getElementById('printable-sheet-paper');
-  const calc = calculateOrder(state);
-  const dateStr = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
-  const matName = escapeHtml(MAT_SPECS[calc.matType]?.name || 'Unknown');
-  const qtyLabel = calc.quantity === 1 ? '1 unit' : `${calc.quantity} units`;
-  const preparerName = escapeHtml(state.preparedByName || 'Unspecified');
-
-  if (type === 'quote') {
-    document.getElementById('print-modal-title').textContent = 'Print Preview: Commercial Quotation Sheet';
-    document.getElementById('execute-print-btn-label').textContent = 'Generate & Print Quote';
-    const num = state.lockedQuotationNumber ? `No. ${escapeHtml(state.lockedQuotationNumber)}` : '<span style="color:#d97706; background:#fffbeb; padding:2px 6px; border-radius:4px; font-size:11px;">[DRAFT - LOCKS ON PRINT]</span>';
-    const edging = calc.edgingType === 'none' ? 'No Edging' : `${calc.edgingType.replace('_', ' ')} (${calc.edgingSides === 'two_sides' ? '2 Sides' : '4 Sides'} - ${calc.edgingLength} ft)`;
-
-    paper.innerHTML = `
-      <div class="doc-head">
-        <div><h1 class="doc-h1">Custom Matting Solutions</h1></div>
-        <div style="text-align:right;">
-          <span class="doc-kicker">Official Commercial Quote</span>
-          <div class="doc-num">${num}</div>
-          <div class="doc-date">Date: ${dateStr}</div>
-        </div>
-      </div>
-      <div class="doc-table">
-        <div class="doc-table-head">Quotation Details</div>
-        <div class="doc-tr"><span class="doc-label">Prepared By</span><span class="doc-val">${preparerName}</span></div>
-        <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${matName}</span></div>
-        <div class="doc-tr"><span class="doc-label">Required Size</span><span class="doc-val font-mono">${calc.width} ft x ${calc.length} ft</span></div>
-        <div class="doc-tr"><span class="doc-label">Quantity</span><span class="doc-val font-mono">${qtyLabel}</span></div>
-        <div class="doc-tr"><span class="doc-label">Fulfillment</span><span class="doc-val">Region: <strong>${escapeHtml(calc.region)}</strong></span></div>
-        <div class="doc-tr"><span class="doc-label">Edging</span><span class="doc-val">${edging}</span></div>
-        <div class="doc-tr bg-light"><span class="doc-label">Unit Price (Excl. VAT)</span><span class="doc-val font-mono">${formatPHP(calc.unitSellingPriceExclVat)}</span></div>
-        <div class="doc-tr bg-light"><span class="doc-label">Price VAT Ex. (${qtyLabel})</span><span class="doc-val font-mono">${formatPHP(calc.sellingPriceExclVat)}</span></div>
-        <div class="doc-tr bg-green"><span class="doc-label" style="color:#047857;">Final Price VAT Inc.</span><span class="doc-val price">${formatPHP(calc.finalSellingPrice)}</span></div>
-      </div>
-      <div class="doc-signs-2">
-        <div><span class="sign-label">Prepared by:</span><span class="sign-role">${preparerName}</span><div class="sign-line"></div><span class="sign-caption">Signature Over Printed Name / Date</span></div>
-        <div><span class="sign-label">Approved & Accepted:</span><span class="sign-role">Customer Conforme</span><div class="sign-line"></div><span class="sign-caption">Signature Over Printed Name / Date</span></div>
-      </div>`;
-  } else {
-    document.getElementById('print-modal-title').textContent = 'Print Preview: Production Job Order Form';
-    document.getElementById('execute-print-btn-label').textContent = 'Generate & Print Job Order';
-    const num = state.lockedJobOrderNumber ? `No. ${escapeHtml(state.lockedJobOrderNumber)}` : '<span style="color:#d97706; background:#fffbeb; padding:2px 6px; border-radius:4px; font-size:11px;">[DRAFT - LOCKS ON PRINT]</span>';
-    const edging = calc.edgingType === 'none' ? 'No Edging' : `${calc.edgingType.replace('_', ' ')} (${calc.edgingSides === 'two_sides' ? '2 Sides' : '4 Sides'} - ${calc.edgingLength} ft)`;
-
-    paper.innerHTML = `
-      <div class="doc-head">
-        <div><h1 class="doc-h1">Custom Matting Job Order Form</h1></div>
-        <div style="text-align:right;">
-          <span class="doc-kicker">Official Production Job Order</span>
-          <div class="doc-num">${num}</div>
-          <div class="doc-date">Date: ${dateStr}</div>
-        </div>
-      </div>
-      <div class="doc-table">
-        <div class="doc-table-head">Production Specifications</div>
-        <div class="doc-tr"><span class="doc-label">Prepared By</span><span class="doc-val">${preparerName}</span></div>
-        <div class="doc-tr"><span class="doc-label">Mat Type</span><span class="doc-val">${matName}</span></div>
-        <div class="doc-tr"><span class="doc-label">Required Size</span><span class="doc-val font-mono">${calc.width} ft x ${calc.length} ft</span></div>
-        <div class="doc-tr"><span class="doc-label">Quantity</span><span class="doc-val font-mono">${qtyLabel}</span></div>
-        <div class="doc-tr"><span class="doc-label">Edging</span><span class="doc-val">${edging}</span></div>
-        <div class="doc-tr"><span class="doc-label">Color</span><div class="blank-line"></div></div>
-        <div class="doc-tr"><span class="doc-label">Region</span><span class="doc-val">${escapeHtml(calc.region)}</span></div>
-        <div class="doc-tr"><span class="doc-label">Start Date</span><div class="blank-line"></div></div>
-        <div class="doc-tr"><span class="doc-label">Completion Date</span><div class="blank-line"></div></div>
-        <div class="doc-tr"><span class="doc-label">Warehouse Team</span><div class="blank-line"></div></div>
-      </div>
-      <div class="doc-signs-3">
-        <div><span class="sign-label">Prepared by:</span><div style="height:2rem;">${preparerName}</div><div class="sign-line"></div><span class="sign-caption">Signature / Date</span></div>
-        <div><span class="sign-label">Approved (Admin):</span><div style="height:2rem;"></div><div class="sign-line"></div><span class="sign-caption">Signature / Date</span></div>
-        <div><span class="sign-label">Received by:</span><div style="height:2rem;"></div><div class="sign-line"></div><span class="sign-caption">Signature / Date</span></div>
-      </div>`;
-  }
-
-  modal.classList.remove('hidden');
-}
-
-// --- Document Log (local device only, see limitation note at top of file) ---
-const DOC_LOG_KEY = 'matting_doc_log';
-
+// 7. Document Logging System (LocalStorage synced)
 function getDocLog() {
   try {
-    const raw = localStorage.getItem(DOC_LOG_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const saved = localStorage.getItem('matting_doc_log');
+    return saved ? JSON.parse(saved) : [];
   } catch {
     return [];
   }
 }
 
-function saveDocLogEntry(entry) {
-  const log = getDocLog();
-  log.unshift(entry);
+function saveDocLog(entry) {
   try {
-    localStorage.setItem(DOC_LOG_KEY, JSON.stringify(log.slice(0, 200)));
+    const list = [entry, ...getDocLog()].slice(0, 200);
+    localStorage.setItem('matting_doc_log', JSON.stringify(list));
   } catch {
-    /* localStorage unavailable (private browsing, quota, etc.) - fail silently, printing still works */
+    /* ignore */
   }
 }
 
 function clearDocLog() {
-  try { localStorage.removeItem(DOC_LOG_KEY); } catch { /* ignore */ }
+  if (window.confirm('Clear all stored quote and job order history on this device?')) {
+    localStorage.removeItem('matting_doc_log');
+    renderDocLogModal();
+  }
 }
 
-// --- Google Sheets sync (fire-and-forget; never blocks printing) ---
-// Uses a text/plain body on purpose: it keeps the request a "simple" CORS
-// request so the browser skips a preflight OPTIONS call, which Apps Script
-// web apps don't handle. Apps Script still reads it fine via
-// e.postData.contents on the receiving end.
-function syncQuoteToGoogleSheets(payload) {
-  if (!isSheetsSyncConfigured()) return Promise.resolve({ skipped: true });
+function renderDocLogModal() {
+  const container = document.getElementById('doc-log-items-container');
+  const emptyBox = document.getElementById('doc-log-empty');
+  const list = getDocLog();
 
-  return fetch(GOOGLE_SHEETS_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
-  })
-    .then(res => res.json())
-    .catch(err => ({ success: false, error: err.message }));
-}
-
-function setSyncStatus(statusEl, state, message) {
-  if (!statusEl) return;
-  statusEl.classList.remove('hidden', 'sync-pending', 'sync-success', 'sync-error');
-  statusEl.classList.add(`sync-${state}`);
-  statusEl.textContent = message;
-}
-
-function renderDocLog() {
-  const listEl = document.getElementById('doc-log-list');
-  const emptyEl = document.getElementById('doc-log-empty');
-  const log = getDocLog();
-
-  if (log.length === 0) {
-    listEl.innerHTML = '';
-    emptyEl.classList.remove('hidden');
+  if (list.length === 0) {
+    emptyBox.classList.remove('hidden');
+    container.innerHTML = '';
     return;
   }
-  emptyEl.classList.add('hidden');
 
-  listEl.innerHTML = log.map(entry => `
+  emptyBox.classList.add('hidden');
+  container.innerHTML = list.map(item => `
     <div class="doc-log-row">
       <div class="doc-log-main">
-        <span class="doc-log-badge ${entry.type === 'quote' ? 'badge-quote' : 'badge-jo'}">${entry.type === 'quote' ? 'Quote' : 'Job Order'}</span>
-        <span class="doc-log-number font-mono">${escapeHtml(entry.number)}</span>
+        <span class="doc-log-badge ${item.docType === 'quote' ? 'badge-quote' : 'badge-jo'}">
+          ${item.docType === 'quote' ? 'Quotation' : 'Job Order'}
+        </span>
+        <span class="doc-log-number">${item.docNumber}</span>
       </div>
       <div class="doc-log-meta">
-        <span>${escapeHtml(entry.matName)} — ${escapeHtml(entry.width)}x${escapeHtml(entry.length)}ft x${escapeHtml(entry.quantity)}</span>
-        <span>${escapeHtml(entry.date)}</span>
+        <span><strong>${item.matName}</strong> (${item.width}ft &times; ${item.length}ft) &bull; Qty: ${item.quantity}</span>
+        <span>${item.date} ${item.preparedBy ? `&bull; Prepared by: ${item.preparedBy}` : ''}</span>
       </div>
-      <div class="doc-log-price font-mono">${escapeHtml(entry.totalPrice)}</div>
+      <div class="doc-log-price">${formatPHP(item.totalAmount)}</div>
     </div>
   `).join('');
 }
 
-// Attach Event Listeners on Load
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('footer-date').textContent = `Local Time: ${new Date().toLocaleDateString('en-PH')}`;
+// 8. Print Modal Handling (Quote & Job Order)
+function openPrintModal(type) {
+  state.activeDocType = type;
+  const calc = calculateOrder(state);
+  const spec = MAT_SPECS[calc.matType];
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const docNum = `${type === 'quote' ? 'QT' : 'JO'}-${Date.now().toString().slice(-6)}`;
 
-  // Sliders sync
+  state.lockedDocNumber = docNum;
+
+  document.getElementById('modal-doc-title').textContent = type === 'quote' ? 'Commercial Quotation' : 'Production Job Order';
+  document.getElementById('doc-header-h1').textContent = type === 'quote' ? 'COMMERCIAL QUOTATION' : 'PRODUCTION JOB ORDER';
+  document.getElementById('doc-header-kicker').textContent = type === 'quote' ? 'Official Commercial Proposal' : 'Manufacturing Work Order';
+  document.getElementById('doc-header-num').textContent = docNum;
+  document.getElementById('doc-header-date').textContent = dateStr;
+
+  // Populate Details
+  document.getElementById('doc-field-mat-name').textContent = spec.name;
+  document.getElementById('doc-field-dimensions').textContent = calc.matType === 'wet_area_3'
+    ? `${calc.width.toFixed(1)} ft x ${calc.length.toFixed(1)} ft (Charged: 3.0 ft x ${calc.roundedLength}.0 ft)`
+    : `${calc.width.toFixed(1)} ft x ${calc.length.toFixed(1)} ft (${calc.cols} x ${calc.rows} Panels)`;
+  document.getElementById('doc-field-quantity').textContent = `${calc.quantity} ${calc.quantity === 1 ? 'unit' : 'units'}`;
+  document.getElementById('doc-field-assembly-rule').textContent = calc.activeRule;
+
+  // Edging & Adhesive Spec (Cleaned of internal waste formula markers)
+  document.getElementById('doc-field-adhesive').textContent = calc.matType === 'wet_area_3'
+    ? 'None (Rule 7 Special Exception)'
+    : state.useAdhesive ? `Butt joint adhesive: ${calc.adhesiveLengthWithWaste.toFixed(1)} linear ft / unit` : 'None';
+  document.getElementById('doc-field-edging').textContent = calc.matType === 'wet_area_3'
+    ? 'None (Rule 7 Special Exception)'
+    : calc.edgingType !== 'none' ? `${calc.edgingType.replace('_', ' ')} along ${calc.edgingSides.replace('_', ' ')} (${calc.edgingLength.toFixed(1)} ft / unit)` : 'None';
+
+  // Financial Lines (Quotes show financial values; Job Orders show specs and signoffs)
+  const isQuote = type === 'quote';
+  document.getElementById('doc-financial-section').classList.toggle('hidden', !isQuote);
+  document.getElementById('doc-signs-quote').classList.toggle('hidden', !isQuote);
+  document.getElementById('doc-signs-jo').classList.toggle('hidden', isQuote);
+
+  if (isQuote) {
+    const pricingTierEl = document.getElementById('doc-field-pricing-tier');
+    if (pricingTierEl) pricingTierEl.closest('.doc-tr')?.remove();
+    document.getElementById('doc-field-unit-excl-vat').textContent = formatPHP(calc.unitSellingPriceExclVat);
+    document.getElementById('doc-field-total-excl-vat').textContent = formatPHP(calc.sellingPriceExclVat);
+    document.getElementById('doc-field-vat').textContent = formatPHP(calc.vatAmount);
+    document.getElementById('doc-field-final-price').textContent = formatPHP(calc.finalSellingPrice);
+  }
+
+  // Show Modal
+  document.getElementById('print-modal').classList.remove('hidden');
+}
+
+function executePrintAndLog() {
+  const calc = calculateOrder(state);
+  const spec = MAT_SPECS[calc.matType];
+  const prepName = document.getElementById('prepared-by-input').value.trim();
+
+  // Save to Log
+  saveDocLog({
+    id: Date.now().toString(),
+    docType: state.activeDocType,
+    docNumber: state.lockedDocNumber,
+    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    matName: spec.name,
+    width: calc.width,
+    length: calc.length,
+    quantity: calc.quantity,
+    totalAmount: calc.finalSellingPrice,
+    preparedBy: prepName || 'Commercial Estimator'
+  });
+
+  window.print();
+}
+
+// 9. Event Listeners & Bootstrapping
+document.addEventListener('DOMContentLoaded', () => {
+  // Dimension Inputs
   const wNum = document.getElementById('width-number-input');
   const wRange = document.getElementById('width-range-input');
   const lNum = document.getElementById('length-number-input');
   const lRange = document.getElementById('length-range-input');
 
-  wNum.addEventListener('input', e => { state.width = parseFloat(e.target.value) || 0; wRange.value = state.width; updateUI(); });
-  wRange.addEventListener('input', e => { state.width = parseFloat(e.target.value) || 0; wNum.value = state.width; updateUI(); });
-  lNum.addEventListener('input', e => { state.length = parseFloat(e.target.value) || 0; lRange.value = state.length; updateUI(); });
-  lRange.addEventListener('input', e => { state.length = parseFloat(e.target.value) || 0; lNum.value = state.length; updateUI(); });
+  wNum.addEventListener('input', e => {
+    state.width = parseFloat(e.target.value) || 0;
+    wRange.value = state.width;
+    updateUI();
+  });
+  wRange.addEventListener('input', e => {
+    state.width = parseFloat(e.target.value) || 0;
+    wNum.value = state.width;
+    updateUI();
+  });
+  lNum.addEventListener('input', e => {
+    state.length = parseFloat(e.target.value) || 0;
+    lRange.value = state.length;
+    updateUI();
+  });
+  lRange.addEventListener('input', e => {
+    state.length = parseFloat(e.target.value) || 0;
+    lNum.value = state.length;
+    updateUI();
+  });
 
-  // Quantity input + stepper buttons
+  // Quantity Stepper
   const qtyNum = document.getElementById('quantity-number-input');
   const qtyDec = document.getElementById('quantity-decrement-btn');
   const qtyInc = document.getElementById('quantity-increment-btn');
 
-  function setQuantity(next) {
-    const clamped = Math.min(MAX_QUANTITY, Math.max(MIN_QUANTITY, Math.round(next) || MIN_QUANTITY));
+  function setQuantity(val) {
+    const clamped = Math.min(MAX_QUANTITY, Math.max(MIN_QUANTITY, Math.round(val) || MIN_QUANTITY));
     state.quantity = clamped;
     qtyNum.value = clamped;
     updateUI();
   }
-  qtyNum.addEventListener('input', e => { setQuantity(parseFloat(e.target.value)); });
+
+  qtyNum.addEventListener('input', e => setQuantity(parseFloat(e.target.value)));
   qtyDec.addEventListener('click', () => setQuantity(state.quantity - 1));
   qtyInc.addEventListener('click', () => setQuantity(state.quantity + 1));
 
-  // Mode Toggle
-  document.getElementById('toggle-costs-mode-btn').addEventListener('click', () => {
-    state.hideCosts = !state.hideCosts;
-    updateUI();
-  });
-
-  // Adhesive Toggle
+  // Adhesive Buttons
   document.querySelectorAll('[data-adhesive]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.useAdhesive = btn.dataset.adhesive === 'true';
@@ -664,7 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Edging Sides Toggle
+  // Edging Sides Buttons
   document.querySelectorAll('[data-sides]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.edgingSides = btn.dataset.sides;
@@ -674,7 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Edging Type Toggle
+  // Edging Profile Buttons
   document.querySelectorAll('[data-type]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.edgingType = btn.dataset.type;
@@ -684,7 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Region Toggle
+  // Region Buttons
   document.querySelectorAll('[data-region]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.region = btn.dataset.region;
@@ -698,128 +806,186 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI();
   });
 
-  // Print buttons — ask who's generating the document before opening the preview
-  document.getElementById('btn-open-quote-modal').addEventListener('click', () => requestPreparerName('quote'));
-  document.getElementById('btn-open-jo-modal').addEventListener('click', () => requestPreparerName('job_order'));
-  document.getElementById('close-print-modal-btn').addEventListener('click', () => {
+  // Modal Open Triggers (Protected by Admin Password)
+  document.getElementById('btn-open-quote-modal').addEventListener('click', () => openPrintModal('quote'));
+  document.getElementById('btn-open-jo-modal').addEventListener('click', () => openPrintModal('job_order'));
+
+  // 1. Mode Switching Toggle (Password Protected)
+  document.getElementById('toggle-costs-mode-btn').addEventListener('click', () => {
+    requestAdminAccess(() => {
+      state.hideCosts = !state.hideCosts;
+      updateUI();
+    }, 'Enter administrator password to switch calculation and display modes.');
+  });
+
+  // 2. Customization Rules modal / view (Password Protected)
+  document.getElementById('btn-open-rules').addEventListener('click', () => {
+    requestAdminAccess(() => {
+      document.getElementById('rules-modal').classList.remove('hidden');
+    }, 'Enter administrator password to view Customization Rules & Assembly Guide.');
+  });
+
+  const footerRulesBtn = document.getElementById('footer-rules-btn');
+  if (footerRulesBtn) {
+    footerRulesBtn.addEventListener('click', () => {
+      requestAdminAccess(() => {
+        document.getElementById('rules-modal').classList.remove('hidden');
+      }, 'Enter administrator password to view Customization Rules & Assembly Guide.');
+    });
+  }
+
+  // 3. Calculation History Log (Password Protected)
+  document.getElementById('btn-open-doc-log').addEventListener('click', () => {
+    requestAdminAccess(() => {
+      renderDocLogModal();
+      document.getElementById('doc-log-modal').classList.remove('hidden');
+    }, 'Enter administrator password to access Quotation & Order History Log.');
+  });
+
+  // 4. Itemized Cost Breakdown modal / view (Password Protected)
+  document.getElementById('btn-open-cost-breakdown').addEventListener('click', () => {
+    requestAdminAccess(() => {
+      openCostBreakdownModal();
+    }, 'Enter administrator password to inspect internal manufacturing cost breakdown.');
+  });
+
+  const lockedNoticeBtn = document.getElementById('cost-breakdown-locked-notice');
+  if (lockedNoticeBtn) {
+    lockedNoticeBtn.addEventListener('click', () => {
+      requestAdminAccess(() => {
+        openCostBreakdownModal();
+      }, 'Enter administrator password to inspect internal manufacturing cost breakdown.');
+    });
+  }
+
+  // Admin Login / Lock toggle in header
+  const adminAuthToggleBtn = document.getElementById('admin-auth-toggle-btn');
+  if (adminAuthToggleBtn) {
+    adminAuthToggleBtn.addEventListener('click', () => {
+      if (state.isAdmin) {
+        state.isAdmin = false;
+        updateUI();
+      } else {
+        requestAdminAccess(() => {
+          // Successfully logged in
+        }, 'Enter master administrator password ("grb123") to unlock privileged features.');
+      }
+    });
+  }
+
+  // Admin Password Prompt Modal Handlers
+  document.getElementById('admin-password-form').addEventListener('submit', e => {
+    e.preventDefault();
+    verifyAdminPassword();
+  });
+  document.getElementById('btn-submit-password').addEventListener('click', verifyAdminPassword);
+  document.getElementById('btn-cancel-password').addEventListener('click', closePasswordModal);
+  document.getElementById('btn-close-password-modal').addEventListener('click', closePasswordModal);
+
+  // Itemized Cost Breakdown Modal Handlers
+  document.getElementById('btn-close-cost-breakdown-modal').addEventListener('click', () => {
+    document.getElementById('cost-breakdown-modal').classList.add('hidden');
+  });
+  document.getElementById('btn-close-cost-breakdown-footer').addEventListener('click', () => {
+    document.getElementById('cost-breakdown-modal').classList.add('hidden');
+  });
+
+  // Modal Close Triggers
+  document.getElementById('btn-close-print-modal').addEventListener('click', () => {
     document.getElementById('print-modal').classList.add('hidden');
   });
-
-  // Preparer Name Modal
-  const nameModal = document.getElementById('preparer-modal');
-  const nameInput = document.getElementById('preparer-name-input');
-  const nameForm = document.getElementById('preparer-name-form');
-  const nameError = document.getElementById('preparer-name-error');
-
-  document.getElementById('close-preparer-modal-btn').addEventListener('click', () => {
-    state.pendingDocType = null;
-    nameModal.classList.add('hidden');
+  document.getElementById('btn-close-doc-log').addEventListener('click', () => {
+    document.getElementById('doc-log-modal').classList.add('hidden');
   });
-  document.getElementById('cancel-preparer-btn').addEventListener('click', () => {
-    state.pendingDocType = null;
-    nameModal.classList.add('hidden');
+  document.getElementById('btn-close-rules-modal').addEventListener('click', () => {
+    document.getElementById('rules-modal').classList.add('hidden');
   });
-  nameForm.addEventListener('submit', e => {
-    e.preventDefault();
-    const name = nameInput.value.trim();
-    if (name.length < 2) {
-      nameError.textContent = 'Please enter your full name (at least 2 characters).';
-      nameError.classList.remove('hidden');
-      return;
-    }
-    nameError.classList.add('hidden');
-    state.preparedByName = name;
-    try { sessionStorage.setItem('preparedByName', name); } catch { /* ignore */ }
-    nameModal.classList.add('hidden');
-    const docType = state.pendingDocType;
-    state.pendingDocType = null;
-    if (docType) openDocumentModal(docType);
+  document.getElementById('btn-rules-footer-close').addEventListener('click', () => {
+    document.getElementById('rules-modal').classList.add('hidden');
   });
 
-  document.getElementById('execute-print-btn').addEventListener('click', () => {
-    // NOTE: document numbers below come from this browser's localStorage.
-    // On a shared/multi-device setup this will NOT guarantee unique
-    // numbers - see the limitation note at the top of this file.
-    if (state.activePrintModal === 'quote' && !state.lockedQuotationNumber) {
-      let cur = parseInt(localStorage.getItem('last_quote_num') || '4020', 10) + 1;
-      localStorage.setItem('last_quote_num', cur.toString());
-      state.lockedQuotationNumber = `QT-${new Date().getFullYear()}-${cur}`;
-      openDocumentModal('quote');
-    } else if (state.activePrintModal === 'job_order' && !state.lockedJobOrderNumber) {
-      let cur = parseInt(localStorage.getItem('last_jo_num') || '7050', 10) + 1;
-      localStorage.setItem('last_jo_num', cur.toString());
-      state.lockedJobOrderNumber = `JO-${new Date().getFullYear()}-${cur}`;
-      openDocumentModal('job_order');
-    }
+  // Print Document Trigger
+  document.getElementById('btn-trigger-print').addEventListener('click', executePrintAndLog);
 
-    const calc = calculateOrder(state);
-    const isQuote = state.activePrintModal === 'quote';
-    const docNumber = isQuote ? state.lockedQuotationNumber : state.lockedJobOrderNumber;
-    const edgingSummary = calc.edgingType === 'none'
-      ? 'No Edging'
-      : `${calc.edgingType.replace('_', ' ')} (${calc.edgingSides === 'two_sides' ? '2 Sides' : '4 Sides'})`;
+  // Clear Document Log Trigger
+  document.getElementById('btn-clear-doc-log').addEventListener('click', clearDocLog);
 
-    // Record locally so it's browsable in the Document Log regardless of
-    // whether Google Sheets sync is configured or reachable.
-    saveDocLogEntry({
-      type: isQuote ? 'quote' : 'job_order',
-      number: docNumber,
-      date: new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
-      matName: MAT_SPECS[calc.matType]?.name || 'Unknown',
-      width: calc.width,
-      length: calc.length,
-      quantity: calc.quantity,
-      totalPrice: formatPHP(calc.finalSellingPrice)
-    });
-
-    const syncStatusEl = document.getElementById('sheets-sync-status');
-    if (isSheetsSyncConfigured()) {
-      setSyncStatus(syncStatusEl, 'pending', 'Syncing to Google Sheets…');
-      syncQuoteToGoogleSheets({
-        type: isQuote ? 'quote' : 'job_order',
-        number: docNumber,
-        preparedBy: state.preparedByName,
-        matName: MAT_SPECS[calc.matType]?.name || 'Unknown',
-        width: calc.width,
-        length: calc.length,
-        quantity: calc.quantity,
-        region: calc.region,
-        bracket: calc.bracket,
-        edging: edgingSummary,
-        unitPriceExclVat: Number(calc.unitSellingPriceExclVat.toFixed(2)),
-        totalPriceExclVat: Number(calc.sellingPriceExclVat.toFixed(2)),
-        vatAmount: Number(calc.vatAmount.toFixed(2)),
-        totalPriceInclVat: Number(calc.finalSellingPrice.toFixed(2))
-      }).then(result => {
-        if (result && result.success) {
-          setSyncStatus(syncStatusEl, 'success', 'Synced to Google Sheets ✓');
-        } else if (result && result.skipped) {
-          syncStatusEl.classList.add('hidden');
-        } else {
-          setSyncStatus(syncStatusEl, 'error', 'Could not sync to Google Sheets (saved locally only)');
-        }
-      });
-    } else {
-      syncStatusEl.classList.add('hidden');
-    }
-
-    window.print();
-  });
-
-  // Document Log Modal (local device history of printed quotes/job orders)
-  const docLogModal = document.getElementById('doc-log-modal');
-  document.getElementById('open-doc-log-modal-btn').addEventListener('click', () => {
-    renderDocLog();
-    docLogModal.classList.remove('hidden');
-  });
-  document.getElementById('close-doc-log-modal-btn').addEventListener('click', () => docLogModal.classList.add('hidden'));
-  document.getElementById('clear-doc-log-btn').addEventListener('click', () => {
-    if (confirm('Clear all locally saved quote/job order history on this device? This cannot be undone.')) {
-      clearDocLog();
-      renderDocLog();
-    }
-  });
-
-  // Initial Run
+  // Initial UI Render
   updateUI();
 });
+
+// Helper Functions for Administrator Authentication & Cost Breakdown
+function requestAdminAccess(onSuccess, promptMsg) {
+  if (state.isAdmin) {
+    if (typeof onSuccess === 'function') onSuccess();
+    return;
+  }
+  pendingAdminAction = onSuccess;
+  const modal = document.getElementById('password-prompt-modal');
+  const input = document.getElementById('admin-password-input');
+  const err = document.getElementById('admin-password-error');
+  const desc = document.getElementById('password-prompt-description');
+  
+  if (promptMsg && desc) {
+    desc.textContent = promptMsg;
+  } else if (desc) {
+    desc.textContent = 'This feature is restricted to authorized personnel. Enter the administrative password to proceed.';
+  }
+  
+  input.value = '';
+  input.classList.remove('input-error');
+  err.classList.add('hidden');
+  modal.classList.remove('hidden');
+  setTimeout(() => input.focus(), 60);
+}
+
+function verifyAdminPassword() {
+  const input = document.getElementById('admin-password-input');
+  const err = document.getElementById('admin-password-error');
+  const val = (input.value || '').trim();
+
+  if (val === ADMIN_PASSWORD) {
+    state.isAdmin = true;
+    document.getElementById('password-prompt-modal').classList.add('hidden');
+    updateUI();
+    if (typeof pendingAdminAction === 'function') {
+      const action = pendingAdminAction;
+      pendingAdminAction = null;
+      action();
+    }
+  } else {
+    err.classList.remove('hidden');
+    input.classList.add('input-error');
+    input.classList.add('shake');
+    setTimeout(() => input.classList.remove('shake'), 400);
+    input.focus();
+  }
+}
+
+function closePasswordModal() {
+  document.getElementById('password-prompt-modal').classList.add('hidden');
+  pendingAdminAction = null;
+}
+
+function openCostBreakdownModal() {
+  const calc = calculateOrder(state);
+  const qtyLabel = calc.quantity === 1 ? '1 unit' : `${calc.quantity} units`;
+
+  document.getElementById('modal-cost-matting').textContent = formatPHP(calc.mattingCost);
+  document.getElementById('modal-cost-label-seam-adhesive').textContent = `2. Seam Adhesive (${(calc.seamAdhesiveLength * ADHESIVE_WASTE_FACTOR * calc.quantity).toFixed(1)} ft):`;
+  document.getElementById('modal-cost-seam-adhesive').textContent = formatPHP(calc.seamAdhesiveCost);
+  document.getElementById('modal-cost-edging').textContent = formatPHP(calc.edgingCost);
+  document.getElementById('modal-cost-label-edging-adhesive').textContent = `4. Edging Adhesive (${(calc.edgingAdhesiveLength * ADHESIVE_WASTE_FACTOR * calc.quantity).toFixed(1)} ft):`;
+  document.getElementById('modal-cost-edging-adhesive').textContent = formatPHP(calc.edgingAdhesiveCost);
+  document.getElementById('modal-cost-label-labor').textContent = `5. Fixed Labor Cost (${qtyLabel}):`;
+  document.getElementById('modal-cost-labor').textContent = formatPHP(calc.laborCost);
+  document.getElementById('modal-cost-total').textContent = formatPHP(calc.totalCost);
+
+  document.getElementById('modal-cost-bracket').textContent = `${state.region} Region - ${BRACKET_LABELS[state.bracket]}`;
+  document.getElementById('modal-cost-basis').textContent = `${(calc.costPercentage * 100).toFixed(0)}% (Direct Cost Basis)`;
+  document.getElementById('modal-cost-excl-vat').textContent = formatPHP(calc.sellingPriceExclVat);
+  document.getElementById('modal-cost-vat').textContent = formatPHP(calc.vatAmount);
+  document.getElementById('modal-cost-inc-vat').textContent = formatPHP(calc.finalSellingPrice);
+
+  document.getElementById('cost-breakdown-modal').classList.remove('hidden');
+}
