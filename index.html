@@ -156,37 +156,35 @@
         <h2 class="card-title">3. Customization &amp; Assembly Accessories</h2>
       </div>
 
-      <div class="tri-grid">
-        <!-- Adhesive Bonding -->
-        <div>
+      <div class="accessories-stack">
+        <!-- Row 1: Adhesive Bonding -->
+        <div class="accessory-row">
           <label class="label-heading">Adhesive Bonding</label>
-          <div class="segment-grid col-2">
+          <div class="segment-pill-group col-2">
             <button type="button" class="btn-segment active" data-adhesive="true">With Adhesive</button>
             <button type="button" class="btn-segment" data-adhesive="false">Without Adhesive</button>
           </div>
-          <p class="text-xs text-muted mt-1 hidden">Butt joint adhesive: ₱18.62/ft (+5% waste factor)</p>
         </div>
 
-        <!-- Edging Profile (Appears BEFORE Edging Application) -->
-        <div>
+        <!-- Row 2: Edging Profile -->
+        <div class="accessory-row">
           <label class="label-heading">Edging Profile</label>
-          <div class="segment-grid col-3">
+          <div class="segment-pill-group col-3">
             <button type="button" class="btn-segment" data-type="none">None</button>
             <button type="button" class="btn-segment active" data-type="low_profile">Low Profile</button>
             <button type="button" class="btn-segment" data-type="high_profile">High Profile</button>
           </div>
-          <p class="text-xs text-muted mt-1 hidden">Commercial vinyl reducer profile</p>
         </div>
 
-        <!-- Edging Application (Appears AFTER Edging Profile) -->
-        <div>
+        <!-- Row 3: Edging Application -->
+        <div class="accessory-row">
           <label class="label-heading">Edging Application</label>
-          <div class="segment-grid col-3">
+          <div class="segment-pill-group col-4">
             <button type="button" class="btn-segment" data-sides="none">No Edging</button>
-            <button type="button" class="btn-segment" data-sides="two_sides">2 Sides</button>
+            <button type="button" class="btn-segment" data-sides="two_width">2 Width Sides</button>
+            <button type="button" class="btn-segment" data-sides="two_length">2 Length Sides</button>
             <button type="button" class="btn-segment active" data-sides="four_sides">All 4 Sides</button>
           </div>
-          <p class="text-xs text-muted mt-1 hidden">Rules 2, 3, 5, 6 perimeter or width placement</p>
         </div>
       </div>
     </article>
@@ -483,32 +481,32 @@
             </div>
             <div class="rules-row">
               <div>
-                <strong class="text-primary">Rule 2 (Width &gt; Standard, 4-Side Edging)</strong>
-                <p class="text-xs text-muted mt-1">Compute seam adhesive per Rule 1. Calculate perimeter edging length = (2 &times; Width) + (2 &times; Length). Apply chosen edging material and edging adhesive along all 4 outer sides.</p>
+                <strong class="text-primary">Rule 2 (Width &gt; Standard, All 4 Sides Edging &ndash; Full Perimeter)</strong>
+                <p class="text-xs text-muted mt-1">Compute seam adhesive per Rule 1. Calculate perimeter edging length = (2 &times; Width) + (2 &times; Length). Apply chosen reducer profile and edging adhesive along all 4 outer edges.</p>
               </div>
             </div>
             <div class="rules-row">
               <div>
-                <strong class="text-primary">Rule 3 (Width &gt; Standard, 2-Side Edging)</strong>
-                <p class="text-xs text-muted mt-1">Compute seam adhesive per Rule 1. Calculate width edging length = 2 &times; Width. Apply chosen edging material and edging adhesive along the 2 width sides only.</p>
+                <strong class="text-primary">Rule 3 (Width &gt; Standard, 2 Width Sides &ndash; Traffic Entrance &amp; Exit Ends)</strong>
+                <p class="text-xs text-muted mt-1">Compute seam adhesive per Rule 1. Calculate edging length = 2 &times; Width. Apply reducer along the 2 width traffic ends only. (Corridor variant: 2 Length Sides = 2 &times; Length along walkway borders).</p>
               </div>
             </div>
             <div class="rules-row">
               <div>
                 <strong class="text-primary">Rule 4 (Oversized Width &amp; Length, No Edging)</strong>
-                <p class="text-xs text-muted mt-1">Compute full roll segments and partial cuts to cover total oversized area. Calculate seam adhesive along length AND width seams.</p>
+                <p class="text-xs text-muted mt-1">Compute full roll segments and partial cuts to cover total oversized area. Calculate seam adhesive along length AND width seams. No perimeter edging applied.</p>
               </div>
             </div>
             <div class="rules-row">
               <div>
-                <strong class="text-primary">Rule 5 (Oversized Width &amp; Length, 4-Side Edging)</strong>
-                <p class="text-xs text-muted mt-1">Follow Rule 4 for seam adhesive along length and width seams. Calculate perimeter edging length = (2 &times; Width) + (2 &times; Length). Apply edging material and edging adhesive along all 4 outer sides.</p>
+                <strong class="text-primary">Rule 5 (Oversized Width &amp; Length, All 4 Sides Edging &ndash; Full Perimeter)</strong>
+                <p class="text-xs text-muted mt-1">Follow Rule 4 for seam adhesive along length and width seams. Calculate perimeter edging length = (2 &times; Width) + (2 &times; Length). Apply reducer profile and edging adhesive along all 4 outer edges.</p>
               </div>
             </div>
             <div class="rules-row">
               <div>
-                <strong class="text-primary">Rule 6 (Oversized Width &amp; Length, 2-Side Edging)</strong>
-                <p class="text-xs text-muted mt-1">Follow Rule 4 for seam adhesive along length and width seams. Calculate width edging length = 2 &times; Width. Apply edging material and edging adhesive along 2 width sides.</p>
+                <strong class="text-primary">Rule 6 (Oversized Width &amp; Length, 2 Width Sides &ndash; Traffic Entrance &amp; Exit Ends)</strong>
+                <p class="text-xs text-muted mt-1">Follow Rule 4 for seam adhesive along length and width seams. Calculate edging length = 2 &times; Width. Apply reducer along 2 width traffic ends. (Corridor variant: 2 Length Sides = 2 &times; Length along walkway borders).</p>
               </div>
             </div>
             <div class="alert-box alert-warning" style="margin-bottom: 0;">
