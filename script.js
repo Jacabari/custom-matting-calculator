@@ -231,8 +231,8 @@ function calculateOrder(input) {
         res.activeRule = 'Rule 6: Oversized Width & Length (2 Width Sides Edging \u2013 Traffic Entrance & Exit Ends)';
         res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along seams. Edging applied strictly along both width entrance/exit ends (${(2 * width).toFixed(1)} ft).`;
       } else if ((edgingSides === 'two_length' || edgingSides === 'two_length_sides') && edgingProfile !== 'none') {
-        res.activeRule = 'Rule 6 (Variant): Oversized Width & Length (2 Length Sides Edging \u2013 Corridor/Walkway Borders)';
-        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along seams. Edging applied strictly along both length walkway borders (${(2 * length).toFixed(1)} ft).`;
+        res.activeRule = 'Rule 6 (Variant): Oversized Width & Length (Two Length Sides Edging)';
+        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along seams. Edging applied strictly along the 2 length edges (2 \u00D7 Length = ${(2 * length).toFixed(1)} ft) for walkway/corridor borders.`;
       } else {
         res.activeRule = 'Rule 4: Oversized Width & Length (No Edging)';
         res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along length and width seams. No perimeter edging bevel applied.`;
@@ -245,8 +245,8 @@ function calculateOrder(input) {
         res.activeRule = 'Rule 3: Custom Width Exceeds Standard Size (2 Width Sides Edging \u2013 Traffic Entrance & Exit Ends)';
         res.ruleDescription = `Width exceeds roll width. Panels bonded along seam. Edging applied along the 2 width entrance/exit ends only (${(2 * width).toFixed(1)} ft).`;
       } else if ((edgingSides === 'two_length' || edgingSides === 'two_length_sides') && edgingProfile !== 'none') {
-        res.activeRule = 'Rule 3 (Variant): Custom Width Exceeds Standard Size (2 Length Sides Edging \u2013 Corridor/Walkway Borders)';
-        res.ruleDescription = `Width exceeds roll width. Panels bonded along seam. Edging applied along the 2 length walkway borders only (${(2 * length).toFixed(1)} ft).`;
+        res.activeRule = 'Rule 3 (Variant): Custom Width Exceeds Standard Size (Two Length Sides Edging)';
+        res.ruleDescription = `Width exceeds roll width. Panels bonded along seam. Edging applied strictly along the 2 length edges (2 \u00D7 Length = ${(2 * length).toFixed(1)} ft) for walkway/corridor borders.`;
       } else {
         res.activeRule = 'Rule 1: Custom Width Exceeds Standard Size (No Edging)';
         res.ruleDescription = `Width exceeds roll width. Panels bonded with seam adhesive along joining length. No perimeter edging bevel applied.`;
@@ -259,8 +259,8 @@ function calculateOrder(input) {
         res.activeRule = 'Standard Roll Cut (2 Width Sides Edging \u2013 Traffic Entrance & Exit Ends)';
         res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Seamless single panel with reducer on width entrance/exit ends (${(2 * width).toFixed(1)} ft).`;
       } else if ((edgingSides === 'two_length' || edgingSides === 'two_length_sides') && edgingProfile !== 'none') {
-        res.activeRule = 'Standard Roll Cut (2 Length Sides Edging \u2013 Corridor/Walkway Borders)';
-        res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Seamless single panel with reducer along length walkway borders (${(2 * length).toFixed(1)} ft).`;
+        res.activeRule = 'Standard Roll Cut (Two Length Sides Edging)';
+        res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Seamless single panel with reducer applied strictly along the 2 length edges (2 \u00D7 Length = ${(2 * length).toFixed(1)} ft).`;
       } else {
         res.activeRule = 'Standard Roll Cut (No Edging)';
         res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Single seamless continuous panel without edging.`;
