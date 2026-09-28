@@ -116,7 +116,6 @@ const DEFAULT_STATE = {
   edgingSides: 'four_sides',    // 'none' | 'two_width' | 'two_length' | 'four_sides'
   region: 'Luzon',              // 'Luzon' | 'VisMin'
   bracket: 'SRP',               // 'SRP' | 'B1' | 'B2' | 'B3' | 'B4'
-  hideCosts: false,
   isAdmin: false
 };
 
@@ -524,11 +523,11 @@ function updateUI() {
   const spec = MAT_SPECS[state.matType];
   const isWet = state.matType === 'wet_area_3';
 
-  // Toggle Mode (Materials Only vs Commercial Pricing)
+  // Ensure Header title and subtitle are permanently set for Commercial Pricing
   const appTitle = document.getElementById('app-title');
   const appSubtitle = document.getElementById('app-subtitle');
-  const modeBtn = document.getElementById('toggle-costs-mode-btn');
-  const modeLabel = document.getElementById('mode-toggle-label');
+  if (appTitle) appTitle.textContent = 'Commercial Matting & Pricing Calculator';
+  if (appSubtitle) appSubtitle.textContent = 'Precision industrial manufacturing and commercial estimating engine';
 
   // Administrator status button update
   const adminAuthBtn = document.getElementById('admin-auth-toggle-btn');
@@ -543,18 +542,6 @@ function updateUI() {
       adminAuthLabel.textContent = 'Admin Login';
       adminAuthBtn.title = 'Administrator access for protected features';
     }
-  }
-
-  if (state.hideCosts) {
-    appTitle.textContent = 'Custom Matting Material Estimator';
-    appSubtitle.textContent = 'Precision industrial material usage, butt joint adhesive bonding, and edging bevel estimator';
-    modeBtn.className = 'btn btn-mode-toggle';
-    modeLabel.textContent = 'Materials Only Mode';
-  } else {
-    appTitle.textContent = 'Custom Matting & Pricing Calculator';
-    appSubtitle.textContent = 'Precision industrial manufacturing and commercial estimating engine';
-    modeBtn.className = 'btn btn-mode-toggle active-pricing';
-    modeLabel.textContent = 'Commercial Pricing Mode';
   }
 
   // Refresh Mat Grid UI
@@ -653,12 +640,12 @@ function updateUI() {
     costBreakdownView.classList.add('hidden');
     if (lockedNotice) lockedNotice.classList.remove('hidden');
   } else {
-    // Authenticated Administrator view: Full visibility into direct cost breakdown or materials mode
-    summaryKicker.textContent = state.hideCosts ? 'Production Requisition' : 'Commercial Proposal';
-    summaryTitle.textContent = state.hideCosts ? 'Material Requirements' : 'Itemized Cost Breakdown';
-    summaryBadge.textContent = state.hideCosts ? `${spec.standardWidth} ft stock roll` : `${state.region} / ${state.bracket}`;
-    matMetricsView.classList.toggle('hidden', !state.hideCosts);
-    costBreakdownView.classList.toggle('hidden', state.hideCosts);
+    // Authenticated Administrator view: Full visibility into direct cost breakdown
+    summaryKicker.textContent = 'Commercial Proposal';
+    summaryTitle.textContent = 'Itemized Cost Breakdown';
+    summaryBadge.textContent = `${state.region} / ${state.bracket}`;
+    matMetricsView.classList.add('hidden');
+    costBreakdownView.classList.remove('hidden');
     if (lockedNotice) lockedNotice.classList.add('hidden');
   }
 
@@ -727,7 +714,6 @@ function resetCalculator() {
   state.edgingSides = DEFAULT_STATE.edgingSides;
   state.region = DEFAULT_STATE.region;
   state.bracket = DEFAULT_STATE.bracket;
-  state.hideCosts = DEFAULT_STATE.hideCosts;
 
   // Sync inputs
   document.getElementById('width-number-input').value = state.width;
@@ -823,15 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetBtn.addEventListener('click', resetCalculator);
   }
 
-  // 1. Mode Switching Toggle (Password Protected)
-  document.getElementById('toggle-costs-mode-btn').addEventListener('click', () => {
-    requestAdminAccess(() => {
-      state.hideCosts = !state.hideCosts;
-      updateUI();
-    }, 'Enter administrator password to switch calculation and display modes.');
-  });
-
-  // 2. Customization Rules modal / view (Password Protected)
+  // 1. Customization Rules modal / view (Password Protected)
   document.getElementById('btn-open-rules').addEventListener('click', () => {
     requestAdminAccess(() => {
       document.getElementById('rules-modal').classList.remove('hidden');
