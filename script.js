@@ -393,7 +393,64 @@ function renderMatGrid() {
   });
 }
 
-// 6. UI Synchronization & Update
+// 6. Granular Manufacturing Formulas & Cost Breakdown Details (Admin Only)
+function getDetailedCostStrings(calc, spec) {
+  const isWet = calc.matType === 'wet_area_3';
+
+  // 1. Matting Material Formula
+  const mattingSub = isWet
+    ? `Rule 7: Charged 3.0 ft \u00D7 ${calc.roundedLength}.0 ft (${(3 * calc.roundedLength).toFixed(1)} sq. ft.) @ ${formatPHP(spec.costPerSqFt)} / sq. ft.`
+    : `${calc.width.toFixed(1)} ft \u00D7 ${calc.length.toFixed(1)} ft (${(calc.width * calc.length).toFixed(1)} sq. ft.) @ ${formatPHP(spec.costPerSqFt)} / sq. ft.`;
+
+  // 2. Seam Adhesive Formula
+  let seamSub = '';
+  if (isWet) {
+    seamSub = 'Rule 7: No seam adhesive applied (0.0 ft)';
+  } else if (!state.useAdhesive) {
+    seamSub = `Bonding disabled: 0.0 ft @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
+  } else if (calc.seamAdhesiveLength === 0) {
+    seamSub = `Seamless cut: Fits master roll width (0.0 ft seam) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
+  } else {
+    seamSub = `${calc.seamAdhesiveLength.toFixed(1)} ft raw seam \u2192 ${(calc.seamAdhesiveLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft (+5% waste factor) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
+  }
+
+  // 3. Perimeter Edging Reducer Formula
+  let edgingSub = '';
+  const edgingRate = calc.edgingProfile === 'low_profile' ? EDGING_LOW_PROFILE_COST : EDGING_HIGH_PROFILE_COST;
+  if (isWet) {
+    edgingSub = 'Rule 7: No perimeter edging reducer applied (0.0 ft)';
+  } else if (calc.edgingProfile === 'none' || calc.edgingSides === 'none') {
+    edgingSub = 'No perimeter edging reducer specified (0.0 ft)';
+  } else {
+    const profileLabel = calc.edgingProfile === 'low_profile' ? 'Low Profile Reducer' : 'High Profile Reducer';
+    const sidesLabel = calc.edgingSides === 'four_sides' ? 'All 4 Sides' : '2 Width Sides';
+    edgingSub = `${profileLabel} on ${sidesLabel} \u2022 ${calc.edgingLength.toFixed(1)} linear ft @ ${formatPHP(edgingRate)} / ft`;
+  }
+
+  // 4. Edging Adhesive Formula
+  let edgingAdhesiveSub = '';
+  if (isWet) {
+    edgingAdhesiveSub = 'Rule 7: No edging adhesive applied (0.0 ft)';
+  } else if (!state.useAdhesive || calc.edgingProfile === 'none' || calc.edgingSides === 'none') {
+    edgingAdhesiveSub = 'No edging adhesive required (0.0 ft)';
+  } else {
+    edgingAdhesiveSub = `${calc.edgingLength.toFixed(1)} ft edging \u2192 ${(calc.edgingLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft (+5% waste factor) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
+  }
+
+  const laborSub = 'Standard fabrication, cutting & assembly fee @ \u20B1100.00 / order';
+  const totalSub = 'Direct sum of master roll material, adhesive bonding & fixed labor';
+
+  return {
+    mattingSub,
+    seamSub,
+    edgingSub,
+    edgingAdhesiveSub,
+    laborSub,
+    totalSub
+  };
+}
+
+// 7. UI Synchronization & Update
 function updateUI() {
   const calc = calculateOrder(state);
   const spec = MAT_SPECS[state.matType];
@@ -539,13 +596,37 @@ function updateUI() {
     : `${calc.edgingProfile.replace('_', ' ')} along ${calc.edgingSides.replace('_', ' ')}`;
 
   // Update Itemized Cost Breakdown View (Internal Admin)
-  document.getElementById('cost-val-matting').textContent = formatPHP(calc.mattingCost);
-  document.getElementById('cost-label-adhesive').textContent = `2. Seam Adhesive (${(calc.seamAdhesiveLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft):`;
-  document.getElementById('cost-val-adhesive').textContent = formatPHP(calc.seamAdhesiveCost);
-  document.getElementById('cost-val-edging').textContent = formatPHP(calc.edgingCost);
-  document.getElementById('cost-val-edging-adhesive').textContent = formatPHP(calc.edgingAdhesiveCost);
-  document.getElementById('cost-val-labor').textContent = formatPHP(calc.laborCost);
-  document.getElementById('cost-val-total').textContent = formatPHP(calc.totalCost);
+  const detail = getDetailedCostStrings(calc, spec);
+
+  const elCostMatting = document.getElementById('cost-val-matting');
+  if (elCostMatting) elCostMatting.textContent = formatPHP(calc.mattingCost);
+  const elCostSubMatting = document.getElementById('cost-sub-matting');
+  if (elCostSubMatting) elCostSubMatting.textContent = detail.mattingSub;
+
+  const elCostAdhesive = document.getElementById('cost-val-adhesive');
+  if (elCostAdhesive) elCostAdhesive.textContent = formatPHP(calc.seamAdhesiveCost);
+  const elCostSubAdhesive = document.getElementById('cost-sub-adhesive');
+  if (elCostSubAdhesive) elCostSubAdhesive.textContent = detail.seamSub;
+
+  const elCostEdging = document.getElementById('cost-val-edging');
+  if (elCostEdging) elCostEdging.textContent = formatPHP(calc.edgingCost);
+  const elCostSubEdging = document.getElementById('cost-sub-edging');
+  if (elCostSubEdging) elCostSubEdging.textContent = detail.edgingSub;
+
+  const elCostEdgingAdh = document.getElementById('cost-val-edging-adhesive');
+  if (elCostEdgingAdh) elCostEdgingAdh.textContent = formatPHP(calc.edgingAdhesiveCost);
+  const elCostSubEdgingAdh = document.getElementById('cost-sub-edging-adhesive');
+  if (elCostSubEdgingAdh) elCostSubEdgingAdh.textContent = detail.edgingAdhesiveSub;
+
+  const elCostLabor = document.getElementById('cost-val-labor');
+  if (elCostLabor) elCostLabor.textContent = formatPHP(calc.laborCost);
+  const elCostSubLabor = document.getElementById('cost-sub-labor');
+  if (elCostSubLabor) elCostSubLabor.textContent = detail.laborSub;
+
+  const elCostTotal = document.getElementById('cost-val-total');
+  if (elCostTotal) elCostTotal.textContent = formatPHP(calc.totalCost);
+  const elCostSubTotal = document.getElementById('cost-sub-total');
+  if (elCostSubTotal) elCostSubTotal.textContent = detail.totalSub;
 
   // Pricing Summary
   document.getElementById('price-excl-vat').textContent = formatPHP(calc.sellingPriceExclVat);
@@ -798,22 +879,64 @@ function closePasswordModal() {
 
 function openCostBreakdownModal() {
   const calc = calculateOrder(state);
+  const spec = MAT_SPECS[calc.matType];
+  const detail = getDetailedCostStrings(calc, spec);
 
-  document.getElementById('modal-cost-matting').textContent = formatPHP(calc.mattingCost);
-  document.getElementById('modal-cost-label-seam-adhesive').textContent = `2. Seam Adhesive (${(calc.seamAdhesiveLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft):`;
-  document.getElementById('modal-cost-seam-adhesive').textContent = formatPHP(calc.seamAdhesiveCost);
-  document.getElementById('modal-cost-edging').textContent = formatPHP(calc.edgingCost);
-  document.getElementById('modal-cost-label-edging-adhesive').textContent = `4. Edging Adhesive (${(calc.edgingAdhesiveLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft):`;
-  document.getElementById('modal-cost-edging-adhesive').textContent = formatPHP(calc.edgingAdhesiveCost);
-  document.getElementById('modal-cost-label-labor').textContent = '5. Fixed Labor Cost:';
-  document.getElementById('modal-cost-labor').textContent = formatPHP(calc.laborCost);
-  document.getElementById('modal-cost-total').textContent = formatPHP(calc.totalCost);
+  // 1. Matting Material
+  const elMat = document.getElementById('modal-cost-matting');
+  if (elMat) elMat.textContent = formatPHP(calc.mattingCost);
+  const elSubMat = document.getElementById('modal-cost-sub-matting');
+  if (elSubMat) elSubMat.textContent = detail.mattingSub;
 
-  document.getElementById('modal-cost-bracket').textContent = `${state.region} Region - ${BRACKET_LABELS[state.bracket]}`;
-  document.getElementById('modal-cost-basis').textContent = `${(calc.costPercentage * 100).toFixed(0)}% (Direct Cost Basis)`;
-  document.getElementById('modal-cost-excl-vat').textContent = formatPHP(calc.sellingPriceExclVat);
-  document.getElementById('modal-cost-vat').textContent = formatPHP(calc.vatAmount);
-  document.getElementById('modal-cost-inc-vat').textContent = formatPHP(calc.finalSellingPrice);
+  // 2. Seam Adhesive
+  const elSeam = document.getElementById('modal-cost-seam-adhesive');
+  if (elSeam) elSeam.textContent = formatPHP(calc.seamAdhesiveCost);
+  const elSubSeam = document.getElementById('modal-cost-sub-seam-adhesive');
+  if (elSubSeam) elSubSeam.textContent = detail.seamSub;
+
+  // 3. Perimeter Edging Reducer
+  const elEdge = document.getElementById('modal-cost-edging');
+  if (elEdge) elEdge.textContent = formatPHP(calc.edgingCost);
+  const elSubEdge = document.getElementById('modal-cost-sub-edging');
+  if (elSubEdge) elSubEdge.textContent = detail.edgingSub;
+
+  // 4. Edging Adhesive Bonding
+  const elEdgeAdh = document.getElementById('modal-cost-edging-adhesive');
+  if (elEdgeAdh) elEdgeAdh.textContent = formatPHP(calc.edgingAdhesiveCost);
+  const elSubEdgeAdh = document.getElementById('modal-cost-sub-edging-adhesive');
+  if (elSubEdgeAdh) elSubEdgeAdh.textContent = detail.edgingAdhesiveSub;
+
+  // 5. Fixed Labor Cost
+  const elLabor = document.getElementById('modal-cost-labor');
+  if (elLabor) elLabor.textContent = formatPHP(calc.laborCost);
+  const elSubLabor = document.getElementById('modal-cost-sub-labor');
+  if (elSubLabor) elSubLabor.textContent = detail.laborSub;
+
+  // Direct Production Cost Total
+  const elTotal = document.getElementById('modal-cost-total');
+  if (elTotal) elTotal.textContent = formatPHP(calc.totalCost);
+  const elSubTotal = document.getElementById('modal-cost-sub-total');
+  if (elSubTotal) elSubTotal.textContent = detail.totalSub;
+
+  // Regional Pricing & Margin Multipliers
+  const elBracket = document.getElementById('modal-cost-bracket');
+  if (elBracket) elBracket.textContent = `${state.region} Region - ${BRACKET_LABELS[state.bracket]}`;
+  const elSubBracket = document.getElementById('modal-cost-sub-bracket');
+  if (elSubBracket) elSubBracket.textContent = `${state.region} regional distribution logistics & commercial bracket`;
+
+  const elBasis = document.getElementById('modal-cost-basis');
+  if (elBasis) elBasis.textContent = `${(calc.costPercentage * 100).toFixed(0)}%`;
+  const elSubBasis = document.getElementById('modal-cost-sub-basis');
+  if (elSubBasis) elSubBasis.textContent = `Formula: Selling Price (Excl. VAT) = Direct Cost (${formatPHP(calc.totalCost)}) / ${(calc.costPercentage * 100).toFixed(0)}% Cost Factor`;
+
+  const elExclVat = document.getElementById('modal-cost-excl-vat');
+  if (elExclVat) elExclVat.textContent = formatPHP(calc.sellingPriceExclVat);
+
+  const elVat = document.getElementById('modal-cost-vat');
+  if (elVat) elVat.textContent = formatPHP(calc.vatAmount);
+
+  const elIncVat = document.getElementById('modal-cost-inc-vat');
+  if (elIncVat) elIncVat.textContent = formatPHP(calc.finalSellingPrice);
 
   document.getElementById('cost-breakdown-modal').classList.remove('hidden');
 }
