@@ -70,6 +70,42 @@ const EDGING_HIGH_PROFILE_COST = 204.51;
 const FIXED_LABOR_COST = 100.00; // ₱100.00 per job order
 const VAT_RATE = 0.12; // Mandatory 12% Philippine VAT
 
+// Commercial Functional Edging Presets
+const EDGING_PRESETS = {
+  none: {
+    id: 'none',
+    name: 'No Edging',
+    label: 'No Edging',
+    short: 'No Edging',
+    blueprintLabel: 'None',
+    calcLength: () => 0
+  },
+  two_width: {
+    id: 'two_width',
+    name: '2 Width Sides (Traffic Entrance & Exit Ends)',
+    label: '2 Width Sides',
+    short: '2 Width Sides',
+    blueprintLabel: 'Traffic Entrance & Exit Ends',
+    calcLength: (w, l) => 2 * w
+  },
+  two_length: {
+    id: 'two_length',
+    name: '2 Length Sides (Corridor/Walkway Borders)',
+    label: '2 Length Sides',
+    short: '2 Length Sides',
+    blueprintLabel: 'Corridor/Walkway Borders',
+    calcLength: (w, l) => 2 * l
+  },
+  four_sides: {
+    id: 'four_sides',
+    name: 'All 4 Sides (Full Perimeter)',
+    label: 'All 4 Sides',
+    short: 'All 4 Sides',
+    blueprintLabel: 'Full Perimeter',
+    calcLength: (w, l) => (2 * w) + (2 * l)
+  }
+};
+
 // In-Memory Application State (Isolated Per Client Session)
 const DEFAULT_STATE = {
   matType: 'heavy_8250',
@@ -77,7 +113,7 @@ const DEFAULT_STATE = {
   length: 12,
   useAdhesive: true,
   edgingProfile: 'low_profile', // 'none' | 'low_profile' | 'high_profile'
-  edgingSides: 'four_sides',    // 'none' | 'two_sides' | 'four_sides'
+  edgingSides: 'four_sides',    // 'none' | 'two_width' | 'two_length' | 'four_sides'
   region: 'Luzon',              // 'Luzon' | 'VisMin'
   bracket: 'SRP',               // 'SRP' | 'B1' | 'B2' | 'B3' | 'B4'
   hideCosts: false,
@@ -178,37 +214,58 @@ function calculateOrder(input) {
       res.edgingLength = 0;
     } else if (edgingSides === 'four_sides') {
       res.edgingLength = (2 * width) + (2 * length);
-    } else if (edgingSides === 'two_sides') {
+    } else if (edgingSides === 'two_width' || edgingSides === 'two_width_sides' || edgingSides === 'two_sides') {
       res.edgingLength = 2 * width;
+    } else if (edgingSides === 'two_length' || edgingSides === 'two_length_sides') {
+      res.edgingLength = 2 * length;
+    } else {
+      res.edgingLength = 0;
     }
     res.edgingAdhesiveLength = (useAdhesive && edgingProfile !== 'none') ? res.edgingLength : 0;
 
     // Rule categorization
     if (isWidthExceeded && isLengthExceeded) {
       if (edgingSides === 'four_sides' && edgingProfile !== 'none') {
-        res.activeRule = 'Rule 5: Oversized Width & Length (Four Sides Edging)';
-        res.ruleDescription = `Area exceeds roll width (${spec.standardWidth} ft) & length (${spec.standardLength} ft). Longitudinal & transverse seams bonded. Perimeter edging on all 4 sides.`;
-      } else if (edgingSides === 'two_sides' && edgingProfile !== 'none') {
-        res.activeRule = 'Rule 6: Oversized Width & Length (Two Sides Edging - Width Only)';
-        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along seams. Edging applied strictly along both width edges (${(2 * width).toFixed(1)} ft).`;
+        res.activeRule = 'Rule 5: Oversized Width & Length (All 4 Sides Edging \u2013 Full Perimeter)';
+        res.ruleDescription = `Area exceeds roll width (${spec.standardWidth} ft) & length (${spec.standardLength} ft). Longitudinal & transverse seams bonded. Reducer bevel applied along all 4 outer edges (${((2 * width) + (2 * length)).toFixed(1)} ft).`;
+      } else if ((edgingSides === 'two_width' || edgingSides === 'two_width_sides' || edgingSides === 'two_sides') && edgingProfile !== 'none') {
+        res.activeRule = 'Rule 6: Oversized Width & Length (2 Width Sides Edging \u2013 Traffic Entrance & Exit Ends)';
+        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along seams. Edging applied strictly along both width entrance/exit ends (${(2 * width).toFixed(1)} ft).`;
+      } else if ((edgingSides === 'two_length' || edgingSides === 'two_length_sides') && edgingProfile !== 'none') {
+        res.activeRule = 'Rule 6 (Variant): Oversized Width & Length (2 Length Sides Edging \u2013 Corridor/Walkway Borders)';
+        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along seams. Edging applied strictly along both length walkway borders (${(2 * length).toFixed(1)} ft).`;
       } else {
         res.activeRule = 'Rule 4: Oversized Width & Length (No Edging)';
-        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along length and width seams. No perimeter edging bevel.`;
+        res.ruleDescription = `Area exceeds roll width & length. Multiple panels bonded along length and width seams. No perimeter edging bevel applied.`;
       }
     } else if (isWidthExceeded) {
       if (edgingSides === 'four_sides' && edgingProfile !== 'none') {
-        res.activeRule = 'Rule 2: Custom Width Exceeds Standard Size (Four Sides Edging)';
-        res.ruleDescription = `Width (${width.toFixed(1)} ft) exceeds roll width (${spec.standardWidth} ft). Seam adhesive applied along ${length.toFixed(1)} ft join. Edging applied on all 4 outer sides.`;
-      } else if (edgingSides === 'two_sides' && edgingProfile !== 'none') {
-        res.activeRule = 'Rule 3: Custom Width Exceeds Standard Size (Two Sides Edging - Width Only)';
-        res.ruleDescription = `Width exceeds roll width. Panels bonded along seam. Edging applied along the 2 width sides only (${(2 * width).toFixed(1)} ft).`;
+        res.activeRule = 'Rule 2: Custom Width Exceeds Standard Size (All 4 Sides Edging \u2013 Full Perimeter)';
+        res.ruleDescription = `Width (${width.toFixed(1)} ft) exceeds roll width (${spec.standardWidth} ft). Seam adhesive applied along ${length.toFixed(1)} ft join. Perimeter edging applied on all 4 outer sides (${((2 * width) + (2 * length)).toFixed(1)} ft).`;
+      } else if ((edgingSides === 'two_width' || edgingSides === 'two_width_sides' || edgingSides === 'two_sides') && edgingProfile !== 'none') {
+        res.activeRule = 'Rule 3: Custom Width Exceeds Standard Size (2 Width Sides Edging \u2013 Traffic Entrance & Exit Ends)';
+        res.ruleDescription = `Width exceeds roll width. Panels bonded along seam. Edging applied along the 2 width entrance/exit ends only (${(2 * width).toFixed(1)} ft).`;
+      } else if ((edgingSides === 'two_length' || edgingSides === 'two_length_sides') && edgingProfile !== 'none') {
+        res.activeRule = 'Rule 3 (Variant): Custom Width Exceeds Standard Size (2 Length Sides Edging \u2013 Corridor/Walkway Borders)';
+        res.ruleDescription = `Width exceeds roll width. Panels bonded along seam. Edging applied along the 2 length walkway borders only (${(2 * length).toFixed(1)} ft).`;
       } else {
         res.activeRule = 'Rule 1: Custom Width Exceeds Standard Size (No Edging)';
         res.ruleDescription = `Width exceeds roll width. Panels bonded with seam adhesive along joining length. No perimeter edging bevel applied.`;
       }
     } else {
-      res.activeRule = 'Standard Roll Cut';
-      res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Single seamless continuous panel.`;
+      if (edgingSides === 'four_sides' && edgingProfile !== 'none') {
+        res.activeRule = 'Standard Roll Cut (All 4 Sides Edging \u2013 Full Perimeter)';
+        res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Seamless single panel with full perimeter reducer bevel (${((2 * width) + (2 * length)).toFixed(1)} ft).`;
+      } else if ((edgingSides === 'two_width' || edgingSides === 'two_width_sides' || edgingSides === 'two_sides') && edgingProfile !== 'none') {
+        res.activeRule = 'Standard Roll Cut (2 Width Sides Edging \u2013 Traffic Entrance & Exit Ends)';
+        res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Seamless single panel with reducer on width entrance/exit ends (${(2 * width).toFixed(1)} ft).`;
+      } else if ((edgingSides === 'two_length' || edgingSides === 'two_length_sides') && edgingProfile !== 'none') {
+        res.activeRule = 'Standard Roll Cut (2 Length Sides Edging \u2013 Corridor/Walkway Borders)';
+        res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Seamless single panel with reducer along length walkway borders (${(2 * length).toFixed(1)} ft).`;
+      } else {
+        res.activeRule = 'Standard Roll Cut (No Edging)';
+        res.ruleDescription = `Dimensions fit within standard master roll width (${spec.standardWidth} ft). Single seamless continuous panel without edging.`;
+      }
     }
 
     res.mattingCost = width * length * spec.costPerSqFt;
@@ -296,16 +353,24 @@ function renderBlueprint(calc) {
       svg += `<line x1="${pad}" y1="${cy}" x2="${pad + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4" />`;
     }
 
-    // Edging Border Visualization
-    if (calc.edgingProfile !== 'none') {
-      if (calc.edgingSides === 'four_sides' || calc.edgingSides === 'two_sides') {
-        svg += `<rect x="${pad - 2}" y="${pad - 4}" width="${w + 4}" height="5" fill="${edgingColor}" />
-                <rect x="${pad - 2}" y="${pad + h - 1}" width="${w + 4}" height="5" fill="${edgingColor}" />`;
-      }
+    // Edging Border Visualization matching Commercial Functional Presets
+    if (calc.edgingProfile !== 'none' && calc.edgingSides !== 'none') {
       if (calc.edgingSides === 'four_sides') {
-        svg += `<rect x="${pad - 4}" y="${pad - 2}" width="5" height="${h + 4}" fill="${edgingColor}" />
-                <rect x="${pad + w - 1}" y="${pad - 2}" width="5" height="${h + 4}" fill="${edgingColor}" />`;
+        // All 4 Sides (Full Perimeter): Top, Bottom, Left, and Right outer edges
+        svg += `<rect x="${pad - 3}" y="${pad - 4}" width="${w + 6}" height="5" fill="${edgingColor}" rx="1" />
+                <rect x="${pad - 3}" y="${pad + h - 1}" width="${w + 6}" height="5" fill="${edgingColor}" rx="1" />
+                <rect x="${pad - 4}" y="${pad - 3}" width="5" height="${h + 6}" fill="${edgingColor}" rx="1" />
+                <rect x="${pad + w - 1}" y="${pad - 3}" width="5" height="${h + 6}" fill="${edgingColor}" rx="1" />`;
+      } else if (calc.edgingSides === 'two_width' || calc.edgingSides === 'two_width_sides' || calc.edgingSides === 'two_sides') {
+        // 2 Width Sides (Traffic Entrance & Exit Ends): Top and Bottom outer edges
+        svg += `<rect x="${pad}" y="${pad - 4}" width="${w}" height="5" fill="${edgingColor}" rx="1" />
+                <rect x="${pad}" y="${pad + h - 1}" width="${w}" height="5" fill="${edgingColor}" rx="1" />`;
+      } else if (calc.edgingSides === 'two_length' || calc.edgingSides === 'two_length_sides') {
+        // 2 Length Sides (Corridor/Walkway Borders): Left and Right outer edges
+        svg += `<rect x="${pad - 4}" y="${pad}" width="5" height="${h}" fill="${edgingColor}" rx="1" />
+                <rect x="${pad + w - 1}" y="${pad}" width="5" height="${h}" fill="${edgingColor}" rx="1" />`;
       }
+      // No Edging ('none'): Omit edging border graphics entirely
     }
   }
 
@@ -322,10 +387,12 @@ function renderBlueprint(calc) {
   // Legends
   document.getElementById('legend-seam-text').textContent = `Adhesive Seam (${calc.seamAdhesiveLength.toFixed(1)} ft)`;
   const edgeLeg = document.getElementById('legend-edging-item');
-  if (calc.edgingProfile !== 'none' && calc.matType !== 'wet_area_3') {
+  if (calc.edgingProfile !== 'none' && calc.edgingSides !== 'none' && calc.matType !== 'wet_area_3') {
     edgeLeg.classList.remove('hidden');
     document.getElementById('legend-edging-swatch').style.backgroundColor = edgingColor;
-    document.getElementById('legend-edging-text').textContent = `${calc.edgingProfile.replace('_', ' ')} (${calc.edgingLength.toFixed(1)} ft)`;
+    const profileLabel = calc.edgingProfile === 'low_profile' ? 'Low Profile' : 'High Profile';
+    const presetObj = EDGING_PRESETS[calc.edgingSides] || (calc.edgingSides === 'two_sides' ? EDGING_PRESETS.two_width : EDGING_PRESETS.four_sides);
+    document.getElementById('legend-edging-text').textContent = `${profileLabel} \u2013 ${presetObj.label || presetObj.short} (${calc.edgingLength.toFixed(1)} ft)`;
   } else {
     edgeLeg.classList.add('hidden');
   }
@@ -417,24 +484,25 @@ function getDetailedCostStrings(calc, spec) {
   // 3. Perimeter Edging Reducer Formula
   let edgingSub = '';
   const edgingRate = calc.edgingProfile === 'low_profile' ? EDGING_LOW_PROFILE_COST : EDGING_HIGH_PROFILE_COST;
+  const profileLabel = calc.edgingProfile === 'low_profile' ? 'Low Profile Reducer' : 'High Profile Reducer';
+  const presetObj = EDGING_PRESETS[calc.edgingSides] || (calc.edgingSides === 'two_sides' ? EDGING_PRESETS.two_width : EDGING_PRESETS.four_sides);
+
   if (isWet) {
     edgingSub = 'Rule 7: No perimeter edging reducer applied (0.0 ft)';
-  } else if (calc.edgingProfile === 'none' || calc.edgingSides === 'none') {
+  } else if (calc.edgingProfile === 'none' || calc.edgingSides === 'none' || calc.edgingLength === 0) {
     edgingSub = 'No perimeter edging reducer specified (0.0 ft)';
   } else {
-    const profileLabel = calc.edgingProfile === 'low_profile' ? 'Low Profile Reducer' : 'High Profile Reducer';
-    const sidesLabel = calc.edgingSides === 'four_sides' ? 'All 4 Sides' : '2 Width Sides';
-    edgingSub = `${profileLabel} on ${sidesLabel} \u2022 ${calc.edgingLength.toFixed(1)} linear ft @ ${formatPHP(edgingRate)} / ft`;
+    edgingSub = `${profileLabel} \u2013 ${presetObj.name}: ${calc.edgingLength.toFixed(1)} ft @ ${formatPHP(edgingRate)} / ft`;
   }
 
   // 4. Edging Adhesive Formula
   let edgingAdhesiveSub = '';
   if (isWet) {
     edgingAdhesiveSub = 'Rule 7: No edging adhesive applied (0.0 ft)';
-  } else if (!state.useAdhesive || calc.edgingProfile === 'none' || calc.edgingSides === 'none') {
+  } else if (!state.useAdhesive || calc.edgingProfile === 'none' || calc.edgingSides === 'none' || calc.edgingLength === 0) {
     edgingAdhesiveSub = 'No edging adhesive required (0.0 ft)';
   } else {
-    edgingAdhesiveSub = `${calc.edgingLength.toFixed(1)} ft edging \u2192 ${(calc.edgingLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft (+5% waste factor) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
+    edgingAdhesiveSub = `Adhesive for ${presetObj.label || presetObj.short}: ${calc.edgingLength.toFixed(1)} ft raw \u2192 ${(calc.edgingLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft (+5% waste factor) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
   }
 
   const laborSub = 'Standard fabrication, cutting & assembly fee @ \u20B1100.00 / order';
@@ -534,9 +602,22 @@ function updateUI() {
   });
 
   document.querySelectorAll('[data-sides]').forEach(btn => {
-    const disabled = isWet || (state.edgingProfile === 'none' && btn.dataset.sides !== 'none');
-    btn.disabled = disabled;
-    btn.classList.toggle('active', state.edgingSides === btn.dataset.sides && state.edgingProfile !== 'none' && !isWet);
+    btn.disabled = isWet;
+    const isProfileNone = state.edgingProfile === 'none';
+    const isNoneBtn = btn.dataset.sides === 'none';
+
+    const isActive = !isWet && (
+      (isProfileNone && isNoneBtn) ||
+      (!isProfileNone && (state.edgingSides === btn.dataset.sides || (btn.dataset.sides === 'two_width' && state.edgingSides === 'two_width_sides')))
+    );
+    btn.classList.toggle('active', isActive);
+
+    // Dim buttons gracefully when Profile is None (except for 'No Edging')
+    if (!isWet && isProfileNone && !isNoneBtn) {
+      btn.classList.add('dimmed');
+    } else {
+      btn.classList.remove('dimmed');
+    }
   });
 
   // Regional Pricing Buttons & Dropdown
@@ -590,10 +671,12 @@ function updateUI() {
     : `${calc.cols} x ${calc.rows} panel segments | Total Area: ${(calc.width * calc.length).toFixed(1)} sq. ft.`;
   document.getElementById('adhesive-usage-length').textContent = `${calc.adhesiveLengthWithWaste.toFixed(1)} ln. ft.`;
   document.getElementById('adhesive-usage-subtext').textContent = `Seams: ${calc.seamAdhesiveLength.toFixed(1)} ft + Edging: ${calc.edgingAdhesiveLength.toFixed(1)} ft (+5% waste factor)`;
-  document.getElementById('edging-usage-length').textContent = calc.edgingProfile === 'none' || isWet ? 'No Edging Applied' : `${calc.edgingLength.toFixed(1)} ln. ft.`;
-  document.getElementById('edging-usage-subtext').textContent = calc.edgingProfile === 'none' || isWet
+  const presetCurrent = EDGING_PRESETS[calc.edgingSides] || (calc.edgingSides === 'two_sides' ? EDGING_PRESETS.two_width : EDGING_PRESETS.none);
+  const profileCurrent = calc.edgingProfile === 'low_profile' ? 'Low Profile Reducer' : calc.edgingProfile === 'high_profile' ? 'High Profile Reducer' : 'None';
+  document.getElementById('edging-usage-length').textContent = calc.edgingProfile === 'none' || calc.edgingSides === 'none' || isWet ? 'No Edging Applied' : `${calc.edgingLength.toFixed(1)} ln. ft.`;
+  document.getElementById('edging-usage-subtext').textContent = calc.edgingProfile === 'none' || calc.edgingSides === 'none' || isWet
     ? 'No border reducer specified'
-    : `${calc.edgingProfile.replace('_', ' ')} along ${calc.edgingSides.replace('_', ' ')}`;
+    : `${profileCurrent} \u2022 ${presetCurrent.name}`;
 
   // Update Itemized Cost Breakdown View (Internal Admin)
   const detail = getDetailedCostStrings(calc, spec);
