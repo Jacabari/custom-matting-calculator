@@ -818,7 +818,7 @@ body {
 .cost-list {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: 0.5rem;
   font-size: 0.75rem;
   color: #cbd5e1;
 }
@@ -826,20 +826,57 @@ body {
 .cost-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+}
+
+.cost-row:last-child {
+  border-bottom: none;
 }
 
 .cost-row.total-row {
   border-top: 2px solid #334155;
-  padding-top: 0.625rem;
+  border-bottom: none;
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
   color: #ffffff;
   font-weight: 800;
+}
+
+.cost-item-name {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: #f1f5f9;
+  display: block;
+  line-height: 1.3;
+}
+
+.cost-subtext {
+  font-size: 0.6875rem;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.cost-item-val {
+  font-weight: 700;
+  color: #ffffff;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  text-align: right;
+  margin-top: 1px;
 }
 
 .cost-val-highlight {
   font-family: var(--font-mono);
   font-weight: 800;
+  font-size: 1.0625rem;
   color: #99bad1;
+  white-space: nowrap;
+  text-align: right;
 }
 
 /* Pricing Bottom Box */
@@ -947,6 +984,7 @@ body {
 }
 
 .max-md { max-width: 32rem; }
+.max-lg { max-width: 44rem; }
 .max-sm { max-width: 26rem; }
 .max-3xl { max-width: 52rem; }
 
@@ -1008,14 +1046,38 @@ body {
 .doc-tr {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 0.625rem 1.25rem;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.6875rem 1.25rem;
   font-size: 0.75rem;
   border-top: 1px solid var(--border-color);
 }
 
 .doc-tr.bg-light { background: #f8fafc; }
 .doc-tr.bg-brand { background: var(--primary-light); border-top: 2px solid var(--primary); }
+
+.doc-item-title {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: var(--text-main);
+  display: block;
+  line-height: 1.3;
+}
+
+.doc-item-sub {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.doc-item-price {
+  font-size: 0.875rem;
+  white-space: nowrap;
+  text-align: right;
+  margin-top: 1px;
+}
 
 .doc-label {
   color: var(--text-muted);
