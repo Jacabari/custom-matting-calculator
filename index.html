@@ -322,28 +322,46 @@
       <!-- Mode 2: Itemized Financial Breakdown (Admin Only - Password Protected) -->
       <div id="cost-breakdown-view" class="cost-list hidden">
         <div class="cost-row">
-          <span>1. Matting Material Cost:</span>
-          <span id="cost-val-matting" class="font-mono">₱0.00</span>
+          <div>
+            <span class="cost-item-name">1. Master Roll Matting Material</span>
+            <p id="cost-sub-matting" class="cost-subtext">5.0 ft &times; 12.0 ft (60.0 sq. ft.) @ ₱535.30 / sq. ft.</p>
+          </div>
+          <span id="cost-val-matting" class="cost-item-val font-mono">₱0.00</span>
         </div>
         <div class="cost-row">
-          <span id="cost-label-adhesive">2. Seam Adhesive:</span>
-          <span id="cost-val-adhesive" class="font-mono">₱0.00</span>
+          <div>
+            <span class="cost-item-name">2. Seam Adhesive Bonding</span>
+            <p id="cost-sub-adhesive" class="cost-subtext">0.0 ft seam &rarr; 0.0 ft (+5% waste) @ ₱18.62 / ft</p>
+          </div>
+          <span id="cost-val-adhesive" class="cost-item-val font-mono">₱0.00</span>
         </div>
         <div class="cost-row">
-          <span>3. Edging Material Cost:</span>
-          <span id="cost-val-edging" class="font-mono">₱0.00</span>
+          <div>
+            <span class="cost-item-name">3. Perimeter Edging Reducer</span>
+            <p id="cost-sub-edging" class="cost-subtext">Low Profile Reducer &bull; 0.0 linear ft @ ₱70.79 / ft</p>
+          </div>
+          <span id="cost-val-edging" class="cost-item-val font-mono">₱0.00</span>
         </div>
         <div class="cost-row">
-          <span>4. Edging Adhesive (+5% waste):</span>
-          <span id="cost-val-edging-adhesive" class="font-mono">₱0.00</span>
+          <div>
+            <span class="cost-item-name">4. Edging Adhesive Bonding</span>
+            <p id="cost-sub-edging-adhesive" class="cost-subtext">0.0 ft edging &rarr; 0.0 ft (+5% waste) @ ₱18.62 / ft</p>
+          </div>
+          <span id="cost-val-edging-adhesive" class="cost-item-val font-mono">₱0.00</span>
         </div>
         <div class="cost-row">
-          <span id="cost-label-labor">5. Fixed Labor Cost:</span>
-          <span id="cost-val-labor" class="font-mono">₱100.00</span>
+          <div>
+            <span class="cost-item-name">5. Fixed Labor Cost</span>
+            <p id="cost-sub-labor" class="cost-subtext">Standard fabrication, cutting &amp; assembly fee @ ₱100.00 / order</p>
+          </div>
+          <span id="cost-val-labor" class="cost-item-val font-mono">₱100.00</span>
         </div>
         <div class="cost-row total-row">
-          <span>Direct Production Cost (Total):</span>
-          <span id="cost-val-total" class="cost-val-highlight">₱0.00</span>
+          <div>
+            <span class="cost-item-name">Direct Production Cost (Total)</span>
+            <p id="cost-sub-total" class="cost-subtext text-light">Sum of master roll, adhesives, reducer &amp; fixed labor</p>
+          </div>
+          <span id="cost-val-total" class="cost-val-highlight font-mono">₱0.00</span>
         </div>
       </div>
 
@@ -575,45 +593,63 @@
 
   <!-- 3. Itemized Production Cost Breakdown Modal (Admin Protected) -->
   <div id="cost-breakdown-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-cost-breakdown-title">
-    <div class="modal-card max-md">
+    <div class="modal-card max-lg">
       <div class="modal-header-dark">
         <div class="flex-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-sm" aria-hidden="true">
             <circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v2m0 8v2"/>
           </svg>
-          <h3 id="modal-cost-breakdown-title" class="font-bold text-sm">Itemized Production Cost Breakdown</h3>
+          <h3 id="modal-cost-breakdown-title" class="font-bold text-sm">Itemized Production Cost Breakdown (Admin Access)</h3>
         </div>
         <button type="button" id="btn-close-cost-breakdown-modal" class="btn-close" aria-label="Close cost breakdown">&times;</button>
       </div>
       <div class="modal-content" style="max-height: 82vh; overflow-y: auto;">
         <p class="text-xs text-muted mb-3">
-          Confidential internal manufacturing cost audit and pricing multiplier analysis.
+          Confidential internal manufacturing cost audit and pricing multiplier analysis. Direct rates and waste factors are strictly restricted to administrators.
         </p>
         
         <div class="doc-table mb-3">
-          <div class="doc-table-head">Internal Direct Cost Breakdown</div>
+          <div class="doc-table-head">Internal Direct Manufacturing Costs</div>
           <div class="doc-tr">
-            <span>1. Master Roll Matting Material:</span>
-            <span id="modal-cost-matting" class="font-mono font-bold text-primary">₱0.00</span>
+            <div>
+              <span class="doc-item-title">1. Master Roll Matting Material</span>
+              <p id="modal-cost-sub-matting" class="doc-item-sub">5.0 ft &times; 12.0 ft (60.0 sq. ft.) @ ₱535.30 / sq. ft.</p>
+            </div>
+            <span id="modal-cost-matting" class="font-mono font-bold text-primary doc-item-price">₱0.00</span>
           </div>
           <div class="doc-tr bg-light">
-            <span id="modal-cost-label-seam-adhesive">2. Seam Adhesive Bonding:</span>
-            <span id="modal-cost-seam-adhesive" class="font-mono font-bold text-primary">₱0.00</span>
+            <div>
+              <span class="doc-item-title">2. Seam Adhesive Bonding</span>
+              <p id="modal-cost-sub-seam-adhesive" class="doc-item-sub">0.0 ft seam &rarr; 0.0 ft (+5% waste factor) @ ₱18.62 / ft</p>
+            </div>
+            <span id="modal-cost-seam-adhesive" class="font-mono font-bold text-primary doc-item-price">₱0.00</span>
           </div>
           <div class="doc-tr">
-            <span>3. Perimeter Edging Reducer:</span>
-            <span id="modal-cost-edging" class="font-mono font-bold text-primary">₱0.00</span>
+            <div>
+              <span class="doc-item-title">3. Perimeter Edging Reducer</span>
+              <p id="modal-cost-sub-edging" class="doc-item-sub">Low Profile on 4 Sides &bull; 0.0 linear ft @ ₱70.79 / ft</p>
+            </div>
+            <span id="modal-cost-edging" class="font-mono font-bold text-primary doc-item-price">₱0.00</span>
           </div>
           <div class="doc-tr bg-light">
-            <span id="modal-cost-label-edging-adhesive">4. Edging Adhesive Bonding:</span>
-            <span id="modal-cost-edging-adhesive" class="font-mono font-bold text-primary">₱0.00</span>
+            <div>
+              <span class="doc-item-title">4. Edging Adhesive Bonding</span>
+              <p id="modal-cost-sub-edging-adhesive" class="doc-item-sub">0.0 ft edging &rarr; 0.0 ft (+5% waste factor) @ ₱18.62 / ft</p>
+            </div>
+            <span id="modal-cost-edging-adhesive" class="font-mono font-bold text-primary doc-item-price">₱0.00</span>
           </div>
           <div class="doc-tr">
-            <span id="modal-cost-label-labor">5. Fixed Labor Cost:</span>
-            <span id="modal-cost-labor" class="font-mono font-bold text-primary">₱100.00</span>
+            <div>
+              <span class="doc-item-title">5. Fixed Labor Cost</span>
+              <p id="modal-cost-sub-labor" class="doc-item-sub">Standard fabrication, cutting &amp; assembly fee @ ₱100.00 / order</p>
+            </div>
+            <span id="modal-cost-labor" class="font-mono font-bold text-primary doc-item-price">₱100.00</span>
           </div>
           <div class="doc-tr bg-brand">
-            <span class="font-bold text-primary">Total Direct Production Cost:</span>
+            <div>
+              <span class="font-bold text-primary doc-item-title">Total Direct Production Cost:</span>
+              <p id="modal-cost-sub-total" class="doc-item-sub text-muted">Sum of direct material, adhesive bonding &amp; fixed labor</p>
+            </div>
             <span id="modal-cost-total" class="font-mono price">₱0.00</span>
           </div>
         </div>
@@ -621,23 +657,38 @@
         <div class="doc-table mb-3">
           <div class="doc-table-head">Regional Pricing Multiplier &amp; Valuation</div>
           <div class="doc-tr">
-            <span>Market Region &amp; Margin Tier:</span>
+            <div>
+              <span class="doc-item-title">Market Region &amp; Margin Tier:</span>
+              <p id="modal-cost-sub-bracket" class="doc-item-sub text-muted">Philippine regional distribution tier</p>
+            </div>
             <span id="modal-cost-bracket" class="font-mono font-bold">Luzon - SRP</span>
           </div>
           <div class="doc-tr bg-light">
-            <span>Direct Cost Percentage:</span>
+            <div>
+              <span class="doc-item-title">Direct Cost Percentage Basis:</span>
+              <p id="modal-cost-sub-basis" class="doc-item-sub text-muted">Formula: Selling Price (Excl. VAT) = Direct Cost / 73.0%</p>
+            </div>
             <span id="modal-cost-basis" class="font-mono font-bold">73.0%</span>
           </div>
           <div class="doc-tr">
-            <span>Selling Price (Excl. VAT):</span>
+            <div>
+              <span class="doc-item-title">Selling Price (Excl. VAT):</span>
+              <p class="doc-item-sub text-muted">Baseline commercial price before sales tax</p>
+            </div>
             <span id="modal-cost-excl-vat" class="font-mono font-bold">₱0.00</span>
           </div>
           <div class="doc-tr bg-light">
-            <span>Mandatory VAT (12.0%):</span>
+            <div>
+              <span class="doc-item-title">Mandatory VAT (12.0%):</span>
+              <p class="doc-item-sub text-muted">Statutory Philippine sales tax (12% of net price)</p>
+            </div>
             <span id="modal-cost-vat" class="font-mono font-bold">₱0.00</span>
           </div>
           <div class="doc-tr bg-brand">
-            <span class="font-bold text-primary">Final Selling Price (Inc. 12% VAT):</span>
+            <div>
+              <span class="font-bold text-primary doc-item-title">Final Selling Price (Inc. 12% VAT):</span>
+              <p class="doc-item-sub text-muted">Total quotation value to customer</p>
+            </div>
             <span id="modal-cost-inc-vat" class="font-mono price">₱0.00</span>
           </div>
         </div>
