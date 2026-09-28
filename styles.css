@@ -120,7 +120,7 @@ body {
 }
 
 .header-inner {
-  max-width: 80rem;
+  max-width: 58rem;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -194,28 +194,16 @@ body {
   margin: 0 4px;
 }
 
-/* Layout Grid */
+/* Linear Single-Column Layout Flow */
 .main-layout {
   flex: 1;
-  max-width: 80rem;
+  max-width: 58rem;
   width: 100%;
   margin: 0 auto;
   padding: 1.5rem;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .main-layout {
-    grid-template-columns: 7fr 5fr;
-  }
-}
-
-.controls-column, .output-column {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
 /* Cards */
@@ -511,42 +499,6 @@ body {
   margin-top: 0.15rem;
 }
 
-/* Quantity Stepper */
-.quantity-stepper {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.btn-stepper {
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-  background: var(--bg-input);
-  color: var(--text-main);
-  font-size: 1.125rem;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-
-.btn-stepper:hover {
-  background: var(--primary-light);
-  color: var(--primary);
-  border-color: var(--primary-border);
-}
-
-.quantity-input {
-  width: 4.5rem;
-  text-align: center;
-  padding: 0.375rem 0.5rem;
-}
-
 /* 3. Accessories Controls */
 .tri-grid {
   display: grid;
@@ -696,7 +648,7 @@ body {
   color: var(--primary);
 }
 
-/* Production Blueprint */
+/* 5. Production Blueprint */
 .blueprint-box {
   display: flex;
   justify-content: center;
@@ -707,13 +659,6 @@ body {
   border: 1px solid var(--border-color);
   min-height: 270px;
   overflow: hidden;
-}
-
-.blueprint-unit-note {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-  text-align: center;
-  margin-top: 0.5rem;
 }
 
 .legend-grid {
@@ -755,7 +700,7 @@ body {
   line-height: 1.4;
 }
 
-/* Itemized Cost Summary (Dark Card) */
+/* 6. Itemized Cost Summary (Dark Card) */
 .summary-card {
   background: #0f172a;
   color: #ffffff;
@@ -766,7 +711,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 360px;
+  min-height: 340px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
@@ -918,7 +863,7 @@ body {
   border-radius: var(--radius-md);
   border: 1px solid #1e293b;
   text-align: center;
-  margin: 1rem 0;
+  margin: 1rem 0 0 0;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
@@ -938,10 +883,43 @@ body {
   margin-top: 4px;
 }
 
-.dual-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+/* Bottom Reset Calculator Action */
+.reset-action-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.75rem 0 1.25rem 0;
+  width: 100%;
+}
+
+.btn-reset-bottom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 0.875rem 2.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: var(--text-main);
+  border: 2px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.btn-reset-bottom:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--primary-shadow);
+}
+
+.btn-reset-bottom:active {
+  transform: translateY(0);
 }
 
 /* Modals */
@@ -998,145 +976,23 @@ body {
   color: #ffffff;
 }
 
-/* Document Log */
-.doc-log-list {
+/* Rules list row */
+.rules-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 18rem;
-  overflow-y: auto;
-}
-
-.doc-log-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.125rem 0.75rem;
+  align-items: flex-start;
   padding: 0.75rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background: #f8fafc;
-  font-size: 0.75rem;
-}
-
-.doc-log-main {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  grid-column: 1 / -1;
-}
-
-.doc-log-badge {
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.badge-quote {
-  background: var(--primary-light);
-  color: var(--primary);
-}
-
-.badge-jo {
-  background: #f1f5f9;
-  color: #334155;
-}
-
-.doc-log-number {
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.doc-log-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: var(--text-muted);
-  font-size: 0.6875rem;
-}
-
-.doc-log-price {
-  align-self: center;
-  font-weight: 800;
-  color: var(--primary);
-}
-
-.doc-log-empty {
-  text-align: center;
-  padding: 2rem 0;
-  color: var(--text-muted);
-}
-
-/* Printable Document */
-.print-toolbar {
-  background: #020617;
-  color: #ffffff;
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.print-canvas {
-  padding: 1.5rem;
-  background: var(--bg-main);
-  max-height: 82vh;
-  overflow-y: auto;
-  display: flex;
-  justify-content: center;
-}
-
-.document-sheet {
   background: #ffffff;
-  width: 100%;
-  max-width: 48rem;
-  padding: 2.5rem;
-  border: 1px solid var(--border-color);
-  color: var(--text-main);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.doc-head {
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 2px solid var(--primary);
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.doc-h1 {
-  font-size: 1.375rem;
-  font-weight: 800;
-  color: var(--primary);
-}
-
-.doc-kicker {
-  font-size: 0.6875rem;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.doc-num {
-  font-size: 0.9375rem;
-  font-weight: 800;
-  font-family: var(--font-mono);
-  color: var(--primary);
-}
-
-.doc-date {
   font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 2px;
 }
 
+/* Shared Specs Table */
 .doc-table {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   overflow: hidden;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   background: #f8fafc;
 }
 
@@ -1150,8 +1006,9 @@ body {
 }
 
 .doc-tr {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 0.625rem 1.25rem;
   font-size: 0.75rem;
   border-top: 1px solid var(--border-color);
@@ -1165,7 +1022,6 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.625rem;
-  align-self: center;
 }
 
 .doc-val {
@@ -1181,54 +1037,6 @@ body {
   font-family: var(--font-mono);
 }
 
-.blank-line {
-  height: 1.25rem;
-  border-bottom: 1px solid #94a3b8;
-  width: 12rem;
-}
-
-.doc-signs-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2.5rem;
-  border-top: 1px solid var(--border-color);
-  padding-top: 1.5rem;
-}
-
-.doc-signs-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-  border-top: 1px solid var(--border-color);
-  padding-top: 1.5rem;
-}
-
-.sign-label {
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.sign-role {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-main);
-  margin-bottom: 2rem;
-  display: block;
-}
-
-.sign-line {
-  border-bottom: 1px solid #64748b;
-  width: 100%;
-  margin-bottom: 3px;
-}
-
-.sign-caption {
-  font-size: 0.625rem;
-  color: var(--text-muted);
-}
-
 /* Footer */
 .app-footer {
   background: #ffffff;
@@ -1240,7 +1048,7 @@ body {
 }
 
 .footer-inner {
-  max-width: 80rem;
+  max-width: 58rem;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -1252,39 +1060,5 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-  }
-}
-
-/* Print Rules */
-@media print {
-  body * {
-    visibility: hidden !important;
-  }
-  #print-modal, #print-modal * {
-    visibility: visible !important;
-  }
-  #print-modal {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-  }
-  .print-toolbar {
-    display: none !important;
-  }
-  .print-canvas {
-    padding: 0 !important;
-    background: #ffffff !important;
-    max-height: none !important;
-  }
-  .document-sheet {
-    border: none !important;
-    padding: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-    box-shadow: none !important;
   }
 }
