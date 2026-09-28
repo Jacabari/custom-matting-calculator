@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Matting Calculator</title>
+  <title>Commercial Matting & Pricing Calculator</title>
   <meta name="description" content="Commercial matting estimator and pricing calculator with material specs, custom sizing, seam bonding, edging, and Philippine regional margin brackets." />
-  <meta property="og:title" content="Matting Calculator" />
+  <meta property="og:title" content="Commercial Matting & Pricing Calculator" />
   <meta property="og:description" content="Commercial matting estimator and pricing calculator with material specs, custom sizing, seam bonding, edging, and Philippine regional margin brackets." />
   
   <!-- Montserrat Typography -->
@@ -59,13 +59,6 @@
           <span id="mode-toggle-label">Commercial Pricing Mode</span>
         </button>
 
-        <button id="btn-open-doc-log" class="btn btn-secondary" type="button" title="View historical quotes & orders">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true">
-            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <span>History Log</span>
-        </button>
-
         <button id="btn-open-rules" class="btn btn-secondary" type="button" title="View manufacturing assembly rules 1-7">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -77,350 +70,312 @@
     </div>
   </header>
 
-  <!-- Main Content Layout -->
+  <!-- Linear Stacked Main Content Layout -->
   <main class="main-layout" id="app-workspace">
     
-    <!-- Left Column: Interactive Calculation Controls -->
-    <section class="controls-column" id="controls-section" aria-label="Order Configuration Controls">
+    <!-- 1. Standard Matting Type Selection -->
+    <article class="card" id="card-mat-selection">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm text-muted" aria-hidden="true">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+        <h2 class="card-title">1. Select Standard Matting Type</h2>
+      </div>
+      <div class="mat-selector-grid" id="mat-type-grid">
+        <!-- Populated dynamically by script.js -->
+      </div>
+    </article>
 
-      <!-- 1. Mat Selection -->
-      <article class="card" id="card-mat-selection">
-        <div class="card-header">
+    <!-- 2. Dimensions (Width & Length) -->
+    <article class="card" id="card-sizing">
+      <div class="card-header justify-between">
+        <div class="flex-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm text-muted" aria-hidden="true">
-            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-            <polyline points="2 17 12 22 22 17"/>
-            <polyline points="2 12 12 17 22 12"/>
+            <rect width="16" height="20" x="4" y="2" rx="2"/>
+            <line x1="8" x2="16" y1="6" y2="6"/>
+            <line x1="16" x2="16" y1="14" y2="14"/>
           </svg>
-          <h2 class="card-title">1. Select Standard Matting Type</h2>
+          <h2 class="card-title">2. Custom Dimensions (Width &amp; Length)</h2>
         </div>
-        <div class="mat-selector-grid" id="mat-type-grid">
-          <!-- Populated dynamically by script.js -->
-        </div>
-      </article>
+      </div>
 
-      <!-- 2. Dimensions & Quantity -->
-      <article class="card" id="card-sizing">
-        <div class="card-header justify-between">
+      <div id="sizing-error-box" class="alert-box alert-error hidden" role="alert">
+        <strong>Dimension Warning:</strong> <span id="sizing-error-message"></span>
+      </div>
+
+      <div class="sliders-stack">
+        <!-- Target Width -->
+        <div class="slider-group">
+          <div class="slider-header">
+            <label class="label-heading" for="width-number-input">Target Width (Feet)</label>
+            <div class="input-with-unit">
+              <input type="number" id="width-number-input" class="number-input" step="0.1" value="5" aria-label="Width in feet" />
+              <span class="unit">ft</span>
+            </div>
+          </div>
+          <input type="range" id="width-range-input" class="range-slider" min="1" max="20" step="0.5" value="5" aria-label="Width slider" />
+          <div class="slider-meta">
+            <span>Min: 1.0 ft</span>
+            <span id="width-cap-notice" class="text-danger font-bold hidden">Rule 7 Cap: 3.0 ft</span>
+            <span id="width-max-label">Max: 20.0 ft</span>
+          </div>
+        </div>
+
+        <!-- Target Length -->
+        <div class="slider-group">
+          <div class="slider-header">
+            <label class="label-heading" for="length-number-input">Target Length (Feet)</label>
+            <div class="input-with-unit">
+              <input type="number" id="length-number-input" class="number-input" step="0.1" value="12" aria-label="Length in feet" />
+              <span class="unit">ft</span>
+            </div>
+          </div>
+          <input type="range" id="length-range-input" class="range-slider" min="1" max="100" step="0.5" value="12" aria-label="Length slider" />
+          <div class="slider-meta">
+            <span>Min: 1.0 ft</span>
+            <span id="length-rounding-notice" class="text-muted hidden">Auto-Rounded (2, 4, 8, 10 ft)</span>
+            <span id="length-max-label">Max: 100.0 ft</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="wet-area-notice-box" class="alert-box alert-warning hidden" role="note">
+        <strong>Rule 7 &ndash; Wet Area Mat Exception:</strong> Width is strictly limited to 3 ft max. Standard allowable charged lengths are strictly <span class="tag-code">2 ft</span>, <span class="tag-code">4 ft</span>, <span class="tag-code">8 ft</span>, or <span class="tag-code">10 ft</span>. Any input length rounds UP to the next standard allowable length for cost and pricing. Leftover cuts are non-reusable. No seam adhesive or perimeter edging applied.
+      </div>
+    </article>
+
+    <!-- 3. Customization & Assembly Accessories (Reordered: Profile before Application) -->
+    <article class="card" id="card-accessories">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm text-muted" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <h2 class="card-title">3. Customization &amp; Assembly Accessories</h2>
+      </div>
+
+      <div class="tri-grid">
+        <!-- Adhesive Bonding -->
+        <div>
+          <label class="label-heading">Adhesive Bonding</label>
+          <div class="segment-grid col-2">
+            <button type="button" class="btn-segment active" data-adhesive="true">With Adhesive</button>
+            <button type="button" class="btn-segment" data-adhesive="false">Without Adhesive</button>
+          </div>
+          <p class="text-xs text-muted mt-1 hidden">Butt joint adhesive: ₱18.62/ft (+5% waste factor)</p>
+        </div>
+
+        <!-- Edging Profile (Appears BEFORE Edging Application) -->
+        <div>
+          <label class="label-heading">Edging Profile</label>
+          <div class="segment-grid col-3">
+            <button type="button" class="btn-segment" data-type="none">None</button>
+            <button type="button" class="btn-segment active" data-type="low_profile">Low Profile</button>
+            <button type="button" class="btn-segment" data-type="high_profile">High Profile</button>
+          </div>
+          <p class="text-xs text-muted mt-1 hidden">Commercial vinyl reducer profile</p>
+        </div>
+
+        <!-- Edging Application (Appears AFTER Edging Profile) -->
+        <div>
+          <label class="label-heading">Edging Application</label>
+          <div class="segment-grid col-3">
+            <button type="button" class="btn-segment" data-sides="none">No Edging</button>
+            <button type="button" class="btn-segment" data-sides="two_sides">2 Sides</button>
+            <button type="button" class="btn-segment active" data-sides="four_sides">All 4 Sides</button>
+          </div>
+          <p class="text-xs text-muted mt-1 hidden">Rules 2, 3, 5, 6 perimeter or width placement</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- 4. Philippine Regional Margin & Bracket -->
+    <article class="card" id="card-region-pricing">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm text-muted" aria-hidden="true">
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        <h2 class="card-title">4. Philippine Regional Margin &amp; Bracket</h2>
+      </div>
+
+      <div class="dual-grid">
+        <div>
+          <label class="label-heading">Delivery Region</label>
+          <div class="segment-pill">
+            <button type="button" class="btn-segment active" data-region="Luzon">Luzon</button>
+            <button type="button" class="btn-segment" data-region="VisMin">VisMin</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="label-heading" for="bracket-select">Commercial Margin Bracket</label>
+          <select id="bracket-select" class="dropdown-select" aria-label="Commercial margin bracket tier">
+            <option value="SRP" selected>Suggested Retail Price (SRP)</option>
+            <option value="B1">Bracket 1 (B1)</option>
+            <option value="B2">Bracket 2 (B2)</option>
+            <option value="B3">Bracket 3 (B3)</option>
+            <option value="B4">Bracket 4 (B4)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="cost-factor-box" class="factor-pill hidden">
+        <span>Formula: Selling Price = (Final Total Cost / Cost Percentage) &times; 1.12 VAT</span>
+        <span id="cost-factor-display" class="tag-code">Cost Basis: 73%</span>
+      </div>
+    </article>
+
+    <!-- 5. Production Blueprint & Layout (Dynamic SVG) -->
+    <article class="card" id="card-blueprint">
+      <div class="card-header justify-between">
+        <div class="flex-center gap-2">
+          <span class="pulse-dot"></span>
+          <h2 class="card-title">5. Production Blueprint &amp; Layout</h2>
+        </div>
+        <span id="blueprint-scale-tag" class="pill-badge">Scale: Calculating...</span>
+      </div>
+
+      <!-- Active Assembly Rule Indicator -->
+      <div class="active-rule-card" id="active-rule-card">
+        <span class="active-rule-title" id="active-rule-title">Standard Roll Cut</span>
+        <p class="active-rule-desc" id="active-rule-desc">Single continuous panel within standard roll width.</p>
+      </div>
+
+      <div id="blueprint-canvas-container" class="blueprint-box" aria-label="Blueprint preview">
+        <!-- Populated with dynamic SVG by script.js -->
+      </div>
+
+      <div class="legend-grid">
+        <div class="legend-item"><span class="swatch swatch-mat"></span><span>Mat Material</span></div>
+        <div class="legend-item"><span class="swatch swatch-seam"></span><span id="legend-seam-text">Adhesive Seam (0.0 ft)</span></div>
+        <div class="legend-item" id="legend-edging-item"><span id="legend-edging-swatch" class="swatch swatch-edging"></span><span id="legend-edging-text">Edging Bevel (0.0 ft)</span></div>
+        <div class="legend-item span-2 hidden" id="legend-waste-item"><span class="swatch swatch-waste"></span><span>Rule 7: Discarded charged cut (non-reusable)</span></div>
+      </div>
+    </article>
+
+    <!-- 6. Itemized Specifications & Financial Summary -->
+    <article class="summary-card" id="card-summary">
+      <div class="ambient-glow glow-top" aria-hidden="true"></div>
+      <div class="ambient-glow glow-bottom" aria-hidden="true"></div>
+
+      <div class="summary-header">
+        <div>
+          <span id="summary-kicker" class="summary-kicker">Commercial Proposal</span>
+          <h2 id="summary-title" class="summary-title">6. Specifications &amp; Commercial Valuation</h2>
+        </div>
+        <div class="flex-center gap-2">
+          <button type="button" id="btn-open-cost-breakdown" class="btn btn-xs btn-secondary" title="View Itemized Cost Breakdown (Password Protected)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Cost Breakdown</span>
+          </button>
+          <span id="summary-badge" class="badge-brand">Commercial Offer</span>
+        </div>
+      </div>
+
+      <!-- Mode 1: Materials Requirements & Proposal Specifications (Default Public View) -->
+      <div id="material-metrics-view" class="metrics-list">
+        <div class="metric-card">
+          <div class="metric-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          </div>
+          <div>
+            <span class="metric-label">Matting Material Required</span>
+            <p id="mat-usage-dimensions" class="metric-value font-mono">5.0 ft x 12.0 ft</p>
+            <p id="mat-usage-subtext" class="metric-sub">Assembled using panel segments</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="14"/></svg>
+          </div>
+          <div>
+            <span class="metric-label">Adhesive Bonding Compound</span>
+            <p id="adhesive-usage-length" class="metric-value font-mono">0.0 ln. ft.</p>
+            <p id="adhesive-usage-subtext" class="metric-sub">Joint seams + edging perimeter</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </div>
+          <div>
+            <span class="metric-label">Edge Reducer Bevel</span>
+            <p id="edging-usage-length" class="metric-value font-mono">0.0 ln. ft.</p>
+            <p id="edging-usage-subtext" class="metric-sub">Commercial vinyl profile</p>
+          </div>
+        </div>
+
+        <div id="cost-breakdown-locked-notice" class="metric-card flex-center justify-between" style="border-style: dashed; cursor: pointer; padding: 0.625rem 0.75rem;" title="Click to unlock itemized cost breakdown">
           <div class="flex-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm text-muted" aria-hidden="true">
-              <rect width="16" height="20" x="4" y="2" rx="2"/>
-              <line x1="8" x2="16" y1="6" y2="6"/>
-              <line x1="16" x2="16" y1="14" y2="14"/>
-            </svg>
-            <h2 class="card-title">2. Dimensions & Order Quantity</h2>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs text-muted" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span class="text-xs text-muted">Itemized direct manufacturing costs are password-protected</span>
           </div>
+          <span class="text-xs font-bold text-primary" style="text-decoration: underline;">Unlock</span>
+        </div>
+      </div>
+
+      <!-- Mode 2: Itemized Financial Breakdown (Admin Only - Password Protected) -->
+      <div id="cost-breakdown-view" class="cost-list hidden">
+        <div class="cost-row">
+          <span>1. Matting Material Cost:</span>
+          <span id="cost-val-matting" class="font-mono">₱0.00</span>
+        </div>
+        <div class="cost-row">
+          <span id="cost-label-adhesive">2. Seam Adhesive:</span>
+          <span id="cost-val-adhesive" class="font-mono">₱0.00</span>
+        </div>
+        <div class="cost-row">
+          <span>3. Edging Material Cost:</span>
+          <span id="cost-val-edging" class="font-mono">₱0.00</span>
+        </div>
+        <div class="cost-row">
+          <span>4. Edging Adhesive (+5% waste):</span>
+          <span id="cost-val-edging-adhesive" class="font-mono">₱0.00</span>
+        </div>
+        <div class="cost-row">
+          <span id="cost-label-labor">5. Fixed Labor Cost:</span>
+          <span id="cost-val-labor" class="font-mono">₱100.00</span>
+        </div>
+        <div class="cost-row total-row">
+          <span>Direct Production Cost (Total):</span>
+          <span id="cost-val-total" class="cost-val-highlight">₱0.00</span>
+        </div>
+      </div>
+
+      <!-- Bottom Pricing Section -->
+      <div class="summary-bottom">
+        <div class="price-line">
+          <span class="text-muted">Net Price (Excl. VAT):</span>
+          <span id="price-excl-vat" class="font-mono">₱0.00</span>
+        </div>
+        <div class="price-line mb-3">
+          <span class="text-muted">Mandatory VAT (12.0%):</span>
+          <span id="price-vat" class="font-mono">₱0.00</span>
         </div>
 
-        <div id="sizing-error-box" class="alert-box alert-error hidden" role="alert">
-          <strong>Dimension Warning:</strong> <span id="sizing-error-message"></span>
+        <div class="selling-display-box">
+          <span class="selling-label">Selling Price (Inc. 12% VAT)</span>
+          <div id="price-inc-vat" class="selling-total font-mono">₱0.00</div>
         </div>
+      </div>
+    </article>
 
-        <div class="sliders-stack">
-          <!-- Target Width -->
-          <div class="slider-group">
-            <div class="slider-header">
-              <label class="label-heading" for="width-number-input">Target Width (Feet)</label>
-              <div class="input-with-unit">
-                <input type="number" id="width-number-input" class="number-input" step="0.1" value="5" aria-label="Width in feet" />
-                <span class="unit">ft</span>
-              </div>
-            </div>
-            <input type="range" id="width-range-input" class="range-slider" min="1" max="20" step="0.5" value="5" aria-label="Width slider" />
-            <div class="slider-meta">
-              <span>Min: 1.0 ft</span>
-              <span id="width-cap-notice" class="text-danger font-bold hidden">Rule 7 Cap: 3.0 ft</span>
-              <span id="width-max-label">Max: 20.0 ft</span>
-            </div>
-          </div>
+    <!-- Reset Calculator Action (Positioned directly below Section 6 at the bottom of the main layout) -->
+    <div class="reset-action-container" id="reset-container">
+      <button id="btn-reset-calculator" class="btn-reset-bottom" type="button" title="Reset all inputs to default settings and scroll to top">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="icon-sm" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        <span>Reset Calculator</span>
+      </button>
+    </div>
 
-          <!-- Target Length -->
-          <div class="slider-group">
-            <div class="slider-header">
-              <label class="label-heading" for="length-number-input">Target Length (Feet)</label>
-              <div class="input-with-unit">
-                <input type="number" id="length-number-input" class="number-input" step="0.1" value="12" aria-label="Length in feet" />
-                <span class="unit">ft</span>
-              </div>
-            </div>
-            <input type="range" id="length-range-input" class="range-slider" min="1" max="100" step="0.5" value="12" aria-label="Length slider" />
-            <div class="slider-meta">
-              <span>Min: 1.0 ft</span>
-              <span id="length-rounding-notice" class="text-muted hidden">Auto-Rounded (2, 4, 8, 10 ft)</span>
-              <span id="length-max-label">Max: 100.0 ft</span>
-            </div>
-          </div>
-
-          <!-- Quantity Stepper -->
-          <div class="slider-group">
-            <div class="slider-header">
-              <label class="label-heading" for="quantity-number-input">Order Quantity (Identical Units)</label>
-              <div class="quantity-stepper">
-                <button type="button" id="quantity-decrement-btn" class="btn-stepper" aria-label="Decrease quantity">&minus;</button>
-                <input type="number" id="quantity-number-input" class="number-input quantity-input" step="1" min="1" max="1000" value="1" aria-label="Quantity of identical units" />
-                <button type="button" id="quantity-increment-btn" class="btn-stepper" aria-label="Increase quantity">&plus;</button>
-              </div>
-            </div>
-            <div class="slider-meta">
-              <span>Min: 1 unit</span>
-              <span class="font-bold text-primary hidden">Fixed Labor: ₱100.00 per job order</span>
-              <span>Max: 1,000 units</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="wet-area-notice-box" class="alert-box alert-warning hidden" role="note">
-          <strong>Rule 7 &ndash; Wet Area Mat Exception:</strong> Width is strictly limited to 3 ft max. Standard allowable charged lengths are strictly <span class="tag-code">2 ft</span>, <span class="tag-code">4 ft</span>, <span class="tag-code">8 ft</span>, or <span class="tag-code">10 ft</span>. Any input length rounds UP to the next standard allowable length for cost and pricing. Leftover cuts are non-reusable. No seam adhesive or perimeter edging applied.
-        </div>
-      </article>
-
-      <!-- 3. Accessories & Assembly Options -->
-      <article class="card" id="card-accessories">
-        <div class="card-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm text-muted" aria-hidden="true">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-          <h2 class="card-title">3. Customization & Assembly Accessories</h2>
-        </div>
-
-        <div class="tri-grid">
-          <div>
-            <label class="label-heading">Adhesive Bonding</label>
-            <div class="segment-grid col-2">
-              <button type="button" class="btn-segment active" data-adhesive="true">With Adhesive</button>
-              <button type="button" class="btn-segment" data-adhesive="false">Without Adhesive</button>
-            </div>
-            <p class="text-xs text-muted mt-1 hidden">Butt joint adhesive: ₱18.62/ft (+5% waste factor)</p>
-          </div>
-
-          <div>
-            <label class="label-heading">Edging Application</label>
-            <div class="segment-grid col-3">
-              <button type="button" class="btn-segment" data-sides="none">No Edging</button>
-              <button type="button" class="btn-segment" data-sides="two_sides">2 Sides</button>
-              <button type="button" class="btn-segment active" data-sides="four_sides">All 4 Sides</button>
-            </div>
-            <p class="text-xs text-muted mt-1 hidden">Rules 2, 3, 5, 6 perimeter or width placement</p>
-          </div>
-
-          <div>
-            <label class="label-heading">Edging Profile</label>
-            <div class="segment-grid col-3">
-              <button type="button" class="btn-segment" data-type="none">None</button>
-              <button type="button" class="btn-segment active" data-type="low_profile">Low Profile</button>
-              <button type="button" class="btn-segment" data-type="high_profile">High Profile</button>
-            </div>
-            <p class="text-xs text-muted mt-1 hidden">Commercial vinyl reducer profile</p>
-          </div>
-        </div>
-      </article>
-
-      <!-- 4. Regional Margin & Pricing Bracket Matrix -->
-      <article class="card" id="card-region-pricing">
-        <div class="card-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm text-muted" aria-hidden="true">
-            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-            <circle cx="12" cy="10" r="3"/>
-          </svg>
-          <h2 class="card-title">4. Philippine Regional Margin & Bracket</h2>
-        </div>
-
-        <div class="dual-grid">
-          <div>
-            <label class="label-heading">Delivery Region</label>
-            <div class="segment-pill">
-              <button type="button" class="btn-segment active" data-region="Luzon">Luzon</button>
-              <button type="button" class="btn-segment" data-region="VisMin">VisMin</button>
-            </div>
-          </div>
-
-          <div>
-            <label class="label-heading" for="bracket-select">Commercial Margin Bracket</label>
-            <select id="bracket-select" class="dropdown-select" aria-label="Commercial margin bracket tier">
-              <option value="SRP" selected>Suggested Retail Price (SRP)</option>
-              <option value="B1">Bracket 1 (B1)</option>
-              <option value="B2">Bracket 2 (B2)</option>
-              <option value="B3">Bracket 3 (B3)</option>
-              <option value="B4">Bracket 4 (B4)</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="cost-factor-box" class="factor-pill hidden">
-          <span>Formula: Selling Price = (Final Total Cost / Cost Percentage) &times; 1.12 VAT</span>
-          <span id="cost-factor-display" class="tag-code">Cost Basis: 73%</span>
-        </div>
-      </article>
-
-    </section>
-
-    <!-- Right Column: Production Blueprint & Itemized Summary -->
-    <aside class="output-column" id="output-section" aria-label="Production and Financial Summaries">
-
-      <!-- Visual Blueprint Canvas -->
-      <article class="card" id="card-blueprint">
-        <div class="card-header justify-between">
-          <div class="flex-center gap-2">
-            <span class="pulse-dot"></span>
-            <h3 class="card-title">Production Blueprint & Layout</h3>
-          </div>
-          <span id="blueprint-scale-tag" class="pill-badge">Scale: Calculating...</span>
-        </div>
-
-        <!-- Active Assembly Rule Indicator -->
-        <div class="active-rule-card" id="active-rule-card">
-          <span class="active-rule-title" id="active-rule-title">Standard Roll Cut</span>
-          <p class="active-rule-desc" id="active-rule-desc">Single continuous panel within standard roll width.</p>
-        </div>
-
-        <div id="blueprint-canvas-container" class="blueprint-box" aria-label="Blueprint preview">
-          <!-- Populated with dynamic SVG by script.js -->
-        </div>
-
-        <div class="legend-grid">
-          <div class="legend-item"><span class="swatch swatch-mat"></span><span>Mat Material</span></div>
-          <div class="legend-item"><span class="swatch swatch-seam"></span><span id="legend-seam-text">Adhesive Seam (0.0 ft)</span></div>
-          <div class="legend-item" id="legend-edging-item"><span id="legend-edging-swatch" class="swatch swatch-edging"></span><span id="legend-edging-text">Edging Bevel (0.0 ft)</span></div>
-          <div class="legend-item span-2 hidden" id="legend-waste-item"><span class="swatch swatch-waste"></span><span>Rule 7: Discarded charged cut (non-reusable)</span></div>
-        </div>
-      </article>
-
-      <!-- Financial / Material Summary Card -->
-      <article class="summary-card" id="card-summary">
-        <div class="ambient-glow glow-top" aria-hidden="true"></div>
-        <div class="ambient-glow glow-bottom" aria-hidden="true"></div>
-
-        <div class="summary-header">
-          <div>
-            <span id="summary-kicker" class="summary-kicker">Commercial Proposal</span>
-            <h2 id="summary-title" class="summary-title">Specifications & Proposal</h2>
-          </div>
-          <div class="flex-center gap-2">
-            <button type="button" id="btn-open-cost-breakdown" class="btn btn-xs btn-secondary" title="View Itemized Cost Breakdown (Password Protected)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span>Cost Breakdown</span>
-            </button>
-            <span id="summary-badge" class="badge-brand">Commercial Offer</span>
-          </div>
-        </div>
-
-        <!-- Mode 1: Materials Requirements & Proposal Specifications (Default Public View) -->
-        <div id="material-metrics-view" class="metrics-list">
-          <div class="metric-card">
-            <div class="metric-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-            </div>
-            <div>
-              <span class="metric-label">Matting Material Required</span>
-              <p id="mat-usage-dimensions" class="metric-value font-mono">5.0 ft x 12.0 ft</p>
-              <p id="mat-usage-subtext" class="metric-sub">Assembled using panel segments</p>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="14"/></svg>
-            </div>
-            <div>
-              <span class="metric-label">Adhesive Bonding Compound</span>
-              <p id="adhesive-usage-length" class="metric-value font-mono">0.0 ln. ft.</p>
-              <p id="adhesive-usage-subtext" class="metric-sub">Joint seams + edging perimeter</p>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            </div>
-            <div>
-              <span class="metric-label">Edge Reducer Bevel</span>
-              <p id="edging-usage-length" class="metric-value font-mono">0.0 ln. ft.</p>
-              <p id="edging-usage-subtext" class="metric-sub">Commercial vinyl profile</p>
-            </div>
-          </div>
-
-          <div id="cost-breakdown-locked-notice" class="metric-card flex-center justify-between" style="border-style: dashed; cursor: pointer; padding: 0.625rem 0.75rem;" title="Click to unlock itemized cost breakdown">
-            <div class="flex-center gap-2">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs text-muted" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span class="text-xs text-muted">Itemized direct manufacturing costs are password-protected</span>
-            </div>
-            <span class="text-xs font-bold text-primary" style="text-decoration: underline;">Unlock</span>
-          </div>
-        </div>
-
-        <!-- Mode 2: Itemized Financial Breakdown (Admin Only - Password Protected) -->
-        <div id="cost-breakdown-view" class="cost-list hidden">
-          <div class="cost-row">
-            <span>1. Matting Material Cost:</span>
-            <span id="cost-val-matting" class="font-mono">₱0.00</span>
-          </div>
-          <div class="cost-row">
-            <span id="cost-label-adhesive">2. Seam Adhesive:</span>
-            <span id="cost-val-adhesive" class="font-mono">₱0.00</span>
-          </div>
-          <div class="cost-row">
-            <span>3. Edging Material Cost:</span>
-            <span id="cost-val-edging" class="font-mono">₱0.00</span>
-          </div>
-          <div class="cost-row">
-            <span>4. Edging Adhesive (+5% waste):</span>
-            <span id="cost-val-edging-adhesive" class="font-mono">₱0.00</span>
-          </div>
-          <div class="cost-row">
-            <span id="cost-label-labor">5. Fixed Labor Cost (₱100/job order):</span>
-            <span id="cost-val-labor" class="font-mono">₱100.00</span>
-          </div>
-          <div class="cost-row total-row">
-            <span>Direct Production Cost (Total):</span>
-            <span id="cost-val-total" class="cost-val-highlight">₱0.00</span>
-          </div>
-        </div>
-
-        <!-- Bottom Pricing Section -->
-        <div class="summary-bottom">
-          <div class="price-line">
-            <span class="text-muted">Order Quantity:</span>
-            <span id="price-quantity-display" class="font-mono font-bold">1 unit</span>
-          </div>
-          <div class="price-line">
-            <span class="text-muted">Unit Price (Excl. VAT):</span>
-            <span id="price-unit-excl-vat" class="font-mono">₱0.00</span>
-          </div>
-          <div class="price-line">
-            <span class="text-muted">Total Price (Excl. VAT):</span>
-            <span id="price-excl-vat" class="font-mono">₱0.00</span>
-          </div>
-          <div class="price-line mb-3">
-            <span class="text-muted">Mandatory VAT (12.0%):</span>
-            <span id="price-vat" class="font-mono">₱0.00</span>
-          </div>
-
-          <div class="selling-display-box">
-            <span class="selling-label">Selling Price (Inc. 12% VAT)</span>
-            <div id="price-inc-vat" class="selling-total font-mono">₱0.00</div>
-          </div>
-
-          <div class="dual-actions">
-            <button type="button" id="btn-open-quote-modal" class="btn btn-primary" title="Print Commercial Quotation">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true">
-                <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-                <path d="M6 14h12v8H6z"/>
-              </svg>
-              <span>Quotation</span>
-            </button>
-            <button type="button" id="btn-open-jo-modal" class="btn btn-secondary" title="Print Production Job Order">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true">
-                <rect width="16" height="20" x="4" y="2" rx="2"/>
-                <line x1="8" x2="16" y1="6" y2="6"/>
-                <line x1="16" x2="16" y1="14" y2="14"/>
-              </svg>
-              <span>Job Order</span>
-            </button>
-          </div>
-        </div>
-      </article>
-
-    </aside>
   </main>
 
   <!-- App Footer -->
@@ -439,168 +394,7 @@
        MODALS
        ========================================================================= -->
 
-  <!-- 1. Print Document Modal (Quotation & Production Job Order) -->
-  <div id="print-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-doc-title">
-    <div class="modal-card max-3xl">
-      <!-- Toolbar -->
-      <div class="print-toolbar">
-        <div class="flex-center gap-3">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-sm" aria-hidden="true">
-            <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-            <path d="M6 14h12v8H6z"/>
-          </svg>
-          <span id="modal-doc-title" class="font-bold text-sm">Commercial Document Preview</span>
-        </div>
-        <div class="flex-center gap-3">
-          <input type="text" id="prepared-by-input" class="text-input" placeholder="Prepared by Name" style="width: 12rem; padding: 0.3rem 0.5rem;" />
-          <button type="button" id="btn-trigger-print" class="btn btn-primary btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true">
-              <polyline points="6 9 6 2 18 2 18 9"/>
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-              <rect width="12" height="8" x="6" y="14"/>
-            </svg>
-            <span>Print Sheet</span>
-          </button>
-          <button type="button" id="btn-close-print-modal" class="btn-close" aria-label="Close document preview">&times;</button>
-        </div>
-      </div>
-
-      <!-- Printable Document Canvas -->
-      <div class="print-canvas">
-        <div class="document-sheet" id="printable-document-sheet">
-          <div class="doc-head">
-            <div>
-              <span id="doc-header-kicker" class="doc-kicker">Commercial Proposal</span>
-              <h1 id="doc-header-h1" class="doc-h1">COMMERCIAL QUOTATION</h1>
-              <p class="text-xs text-muted mt-1">Industrial Matting & Floor Protection Systems</p>
-            </div>
-            <div style="text-align: right;">
-              <span class="doc-kicker">Document Reference</span>
-              <p id="doc-header-num" class="doc-num">QT-000000</p>
-              <p id="doc-header-date" class="doc-date">September 6, 2026</p>
-            </div>
-          </div>
-
-          <!-- Specifications Table -->
-          <div class="doc-table">
-            <div class="doc-table-head">Production & Material Specifications</div>
-            <div class="doc-tr">
-              <span class="doc-label">Product Selected:</span>
-              <span id="doc-field-mat-name" class="doc-val">Heavy Traffic 8250</span>
-            </div>
-            <div class="doc-tr bg-light">
-              <span class="doc-label">Dimensions / Sizing:</span>
-              <span id="doc-field-dimensions" class="doc-val">5.0 ft x 12.0 ft</span>
-            </div>
-            <div class="doc-tr">
-              <span class="doc-label">Total Quantity:</span>
-              <span id="doc-field-quantity" class="doc-val font-bold">1 unit</span>
-            </div>
-            <div class="doc-tr bg-light">
-              <span class="doc-label">Assembly Guideline:</span>
-              <span id="doc-field-assembly-rule" class="doc-val">Rule 2: Custom Width Exceeds Standard Size</span>
-            </div>
-            <div class="doc-tr">
-              <span class="doc-label">Seam Adhesive Spec:</span>
-              <span id="doc-field-adhesive" class="doc-val font-mono">Butt joint adhesive: 0.0 linear ft / unit</span>
-            </div>
-            <div class="doc-tr bg-light">
-              <span class="doc-label">Edging Bevel Spec:</span>
-              <span id="doc-field-edging" class="doc-val">Low Profile Reducer</span>
-            </div>
-          </div>
-
-          <!-- Financial Section (Quotation Mode Only) -->
-          <div id="doc-financial-section" class="doc-table">
-            <div class="doc-table-head">Commercial Pricing & Valuation</div>
-            <div class="doc-tr bg-light">
-              <span class="doc-label">Unit Price (Excl. VAT):</span>
-              <span id="doc-field-unit-excl-vat" class="doc-val font-mono">₱0.00</span>
-            </div>
-            <div class="doc-tr">
-              <span class="doc-label">Total Amount (Excl. VAT):</span>
-              <span id="doc-field-total-excl-vat" class="doc-val font-mono">₱0.00</span>
-            </div>
-            <div class="doc-tr bg-light">
-              <span class="doc-label">Mandatory VAT (12.0%):</span>
-              <span id="doc-field-vat" class="doc-val font-mono">₱0.00</span>
-            </div>
-            <div class="doc-tr bg-brand">
-              <span class="doc-label font-bold text-primary">Final Selling Price (Inc. 12% VAT):</span>
-              <span id="doc-field-final-price" class="doc-val price">₱0.00</span>
-            </div>
-          </div>
-
-          <!-- Quotation Signatures -->
-          <div id="doc-signs-quote" class="doc-signs-2">
-            <div>
-              <span class="sign-label">Commercial Account Representative</span>
-              <span class="sign-role">Estimating / Sales Department</span>
-              <div class="sign-line"></div>
-              <span class="sign-caption">Authorized Signature & Date</span>
-            </div>
-            <div>
-              <span class="sign-label">Customer Acceptance</span>
-              <span class="sign-role">Conforme & Purchase Order Approval</span>
-              <div class="sign-line"></div>
-              <span class="sign-caption">Signature over Printed Name / Date</span>
-            </div>
-          </div>
-
-          <!-- Job Order Signatures -->
-          <div id="doc-signs-jo" class="doc-signs-3 hidden">
-            <div>
-              <span class="sign-label">Production Planner</span>
-              <span class="sign-role">Material Allocation</span>
-              <div class="sign-line"></div>
-              <span class="sign-caption">Checked & Released</span>
-            </div>
-            <div>
-              <span class="sign-label">Assembly Fabricator</span>
-              <span class="sign-role">Seaming & Edging Joint</span>
-              <div class="sign-line"></div>
-              <span class="sign-caption">Fabricated as Specified</span>
-            </div>
-            <div>
-              <span class="sign-label">Quality Assurance</span>
-              <span class="sign-role">Final Inspection & Dimension Check</span>
-              <div class="sign-line"></div>
-              <span class="sign-caption">Passed Inspection</span>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 2. Document History Log Modal -->
-  <div id="doc-log-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-log-title">
-    <div class="modal-card max-md">
-      <div class="modal-header-dark">
-        <div class="flex-center gap-2">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-sm" aria-hidden="true">
-            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <h3 id="modal-log-title" class="font-bold text-sm">Quotation & Order History</h3>
-        </div>
-        <button type="button" id="btn-close-doc-log" class="btn-close" aria-label="Close history log">&times;</button>
-      </div>
-      <div class="modal-content">
-        <div id="doc-log-items-container" class="doc-log-list">
-          <!-- Populated by script.js -->
-        </div>
-        <div id="doc-log-empty" class="doc-log-empty">
-          <p class="text-sm text-muted">No documents printed or recorded in this browser session yet.</p>
-        </div>
-        <div class="flex-end mt-4">
-          <button type="button" id="btn-clear-doc-log" class="btn btn-secondary btn-xs">Clear Local Log</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 3. Assembly Rules Reference Modal -->
+  <!-- 1. Assembly Rules Reference Modal -->
   <div id="rules-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-rules-title">
     <div class="modal-card max-3xl">
       <div class="modal-header-dark">
@@ -609,7 +403,7 @@
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
           </svg>
-          <h3 id="modal-rules-title" class="font-bold text-sm">Matting Specifications & Manufacturing Assembly Rules</h3>
+          <h3 id="modal-rules-title" class="font-bold text-sm">Matting Specifications &amp; Manufacturing Assembly Rules</h3>
         </div>
         <button type="button" id="btn-close-rules-modal" class="btn-close" aria-label="Close assembly rules">&times;</button>
       </div>
@@ -617,7 +411,7 @@
         
         <!-- 1. Parameters -->
         <div class="mb-4">
-          <h4 class="card-title text-primary mb-2">1. General Material & Manufacturing Parameters</h4>
+          <h4 class="card-title text-primary mb-2">1. General Material &amp; Manufacturing Parameters</h4>
           <div class="factor-pill" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; background: #f8fafc; color: #334155; border-color: #cbd5e1;">
             <div>Joint Style: <strong>Butt joint</strong></div>
             <div>Adhesive Style: <strong>Along the seam</strong></div>
@@ -663,39 +457,39 @@
         <div class="mb-4">
           <h4 class="card-title text-primary mb-2">3. Custom Assembly Rules (1 &ndash; 7)</h4>
           <div class="metrics-list">
-            <div class="doc-log-row" style="background: #ffffff; border-color: #e2e8f0;">
+            <div class="rules-row">
               <div>
                 <strong class="text-primary">Rule 1 (Width &gt; Standard, No Edging)</strong>
                 <p class="text-xs text-muted mt-1">Determine required rolls/pieces. When custom width exceeds standard width, apply seam adhesive along the joining length.</p>
               </div>
             </div>
-            <div class="doc-log-row" style="background: #ffffff; border-color: #e2e8f0;">
+            <div class="rules-row">
               <div>
                 <strong class="text-primary">Rule 2 (Width &gt; Standard, 4-Side Edging)</strong>
                 <p class="text-xs text-muted mt-1">Compute seam adhesive per Rule 1. Calculate perimeter edging length = (2 &times; Width) + (2 &times; Length). Apply chosen edging material and edging adhesive along all 4 outer sides.</p>
               </div>
             </div>
-            <div class="doc-log-row" style="background: #ffffff; border-color: #e2e8f0;">
+            <div class="rules-row">
               <div>
                 <strong class="text-primary">Rule 3 (Width &gt; Standard, 2-Side Edging)</strong>
                 <p class="text-xs text-muted mt-1">Compute seam adhesive per Rule 1. Calculate width edging length = 2 &times; Width. Apply chosen edging material and edging adhesive along the 2 width sides only.</p>
               </div>
             </div>
-            <div class="doc-log-row" style="background: #ffffff; border-color: #e2e8f0;">
+            <div class="rules-row">
               <div>
-                <strong class="text-primary">Rule 4 (Oversized Width & Length, No Edging)</strong>
+                <strong class="text-primary">Rule 4 (Oversized Width &amp; Length, No Edging)</strong>
                 <p class="text-xs text-muted mt-1">Compute full roll segments and partial cuts to cover total oversized area. Calculate seam adhesive along length AND width seams.</p>
               </div>
             </div>
-            <div class="doc-log-row" style="background: #ffffff; border-color: #e2e8f0;">
+            <div class="rules-row">
               <div>
-                <strong class="text-primary">Rule 5 (Oversized Width & Length, 4-Side Edging)</strong>
+                <strong class="text-primary">Rule 5 (Oversized Width &amp; Length, 4-Side Edging)</strong>
                 <p class="text-xs text-muted mt-1">Follow Rule 4 for seam adhesive along length and width seams. Calculate perimeter edging length = (2 &times; Width) + (2 &times; Length). Apply edging material and edging adhesive along all 4 outer sides.</p>
               </div>
             </div>
-            <div class="doc-log-row" style="background: #ffffff; border-color: #e2e8f0;">
+            <div class="rules-row">
               <div>
-                <strong class="text-primary">Rule 6 (Oversized Width & Length, 2-Side Edging)</strong>
+                <strong class="text-primary">Rule 6 (Oversized Width &amp; Length, 2-Side Edging)</strong>
                 <p class="text-xs text-muted mt-1">Follow Rule 4 for seam adhesive along length and width seams. Calculate width edging length = 2 &times; Width. Apply edging material and edging adhesive along 2 width sides.</p>
               </div>
             </div>
@@ -745,7 +539,7 @@
     </div>
   </div>
 
-  <!-- 4. Administrator Password Prompt Modal -->
+  <!-- 2. Administrator Password Prompt Modal -->
   <div id="password-prompt-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="password-prompt-title">
     <div class="modal-card max-sm">
       <div class="modal-header-dark">
@@ -779,7 +573,7 @@
     </div>
   </div>
 
-  <!-- 5. Itemized Production Cost Breakdown Modal (Admin Protected) -->
+  <!-- 3. Itemized Production Cost Breakdown Modal (Admin Protected) -->
   <div id="cost-breakdown-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-cost-breakdown-title">
     <div class="modal-card max-md">
       <div class="modal-header-dark">
@@ -815,7 +609,7 @@
             <span id="modal-cost-edging-adhesive" class="font-mono font-bold text-primary">₱0.00</span>
           </div>
           <div class="doc-tr">
-            <span id="modal-cost-label-labor">5. Fixed Labor Cost (₱100/job order):</span>
+            <span id="modal-cost-label-labor">5. Fixed Labor Cost:</span>
             <span id="modal-cost-labor" class="font-mono font-bold text-primary">₱100.00</span>
           </div>
           <div class="doc-tr bg-brand">
@@ -825,9 +619,9 @@
         </div>
 
         <div class="doc-table mb-3">
-          <div class="doc-table-head">Regional Pricing Multiplier & Valuation</div>
+          <div class="doc-table-head">Regional Pricing Multiplier &amp; Valuation</div>
           <div class="doc-tr">
-            <span>Market Region & Margin Tier:</span>
+            <span>Market Region &amp; Margin Tier:</span>
             <span id="modal-cost-bracket" class="font-mono font-bold">Luzon - SRP</span>
           </div>
           <div class="doc-tr bg-light">
