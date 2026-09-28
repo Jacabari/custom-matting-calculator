@@ -292,23 +292,6 @@ body {
   border-color: var(--primary-hover);
 }
 
-.btn-mode-toggle {
-  background: var(--primary-light);
-  color: var(--primary);
-  border-color: var(--primary-border);
-}
-.btn-mode-toggle:hover {
-  background: #deebf5;
-}
-.btn-mode-toggle.active-pricing {
-  background: var(--primary);
-  color: #ffffff;
-  border-color: var(--primary);
-}
-.btn-mode-toggle.active-pricing:hover {
-  background: var(--primary-hover);
-}
-
 .btn-admin-active {
   background: #ecfdf5;
   color: #047857;
