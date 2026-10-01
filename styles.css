@@ -518,7 +518,7 @@ body {
 .segment-pill-group.col-4 { grid-template-columns: repeat(4, 1fr); }
 
 @media (max-width: 520px) {
-  .segment-pill-group.col-4 { grid-template-columns: repeat(2, 1fr); }
+  .segment-pill-group.col-3 { grid-template-columns: repeat(3, 1fr); }
 }
 
 .btn-segment {
