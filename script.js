@@ -1,11 +1,11 @@
 /**
  * Commercial Matting Estimator & Pricing Calculator
  * Pure Vanilla JavaScript (ES6) Engine - Isolated Client-Side Execution
- * Implements Rules 1-8, Base Material Costs, Adhesive Bonding (+5% Waste),
+ * Implements Rules 1-8, Master Roll Matting Costs, Seam Adhesive Bonding (+5% Waste),
  * Edging, and Two-Part Pricing with Regional Margin Brackets.
  */
 
-// 1. Data Specifications & Constants
+// 1. Master Matting Specifications & Data Constants
 const MAT_SPECS = {
   heavy_8250: {
     id: 'heavy_8250',
@@ -29,7 +29,7 @@ const MAT_SPECS = {
     standardWidth: 3,
     standardLength: 60,
     costPerSqFt: 333.89,
-    desc: 'Ribbed carpet texture + Factory built-in length edging'
+    desc: 'Ribbed carpet texture + Factory-built length edging'
   },
   carpet_3100_4: {
     id: 'carpet_3100_4',
@@ -37,7 +37,7 @@ const MAT_SPECS = {
     standardWidth: 4,
     standardLength: 60,
     costPerSqFt: 302.84,
-    desc: 'Ribbed carpet texture + Factory built-in length edging'
+    desc: 'Ribbed carpet texture + Factory-built length edging'
   },
   wet_area_3: {
     id: 'wet_area_3',
@@ -62,47 +62,43 @@ const BRACKET_LABELS = {
   B4: 'Bracket 4 (B4)'
 };
 
-// Application & Material Parameters
-const ADHESIVE_COST_PER_LN_FT = 18.62; // ₱1,117.73 / 60 ft
+// Fixed Application Parameters
+const ADHESIVE_COST_PER_LN_FT = 18.62; // ₱1,117.73 / 60 ft tube
 const ADHESIVE_WASTE_FACTOR = 1.05;    // +5% waste factor
 const EDGING_LOW_PROFILE_COST = 70.79;
 const EDGING_HIGH_PROFILE_COST = 204.51;
 const FIXED_LABOR_COST = 100.00;       // ₱100.00 per job order
-const VAT_RATE = 0.12;                 // Mandatory 12% Philippine VAT
+const VAT_RATE = 0.12;                 // Statutory 12% Philippine VAT
 
-// Commercial Functional Edging Presets
+// Functional Edging Application Presets
 const EDGING_PRESETS = {
   none: {
     id: 'none',
     name: 'No Edging',
     label: 'No Edging',
-    short: 'No Edging',
-    blueprintLabel: 'None'
+    short: 'No Edging'
   },
   two_width: {
     id: 'two_width',
     name: '2 Width Sides (Traffic Entrance & Exit Ends)',
     label: '2 Width Sides',
-    short: '2 Width Sides',
-    blueprintLabel: 'Traffic Entrance & Exit Ends'
+    short: '2 Width Sides'
   },
   two_length: {
     id: 'two_length',
     name: '2 Length Sides (Corridor/Walkway Borders)',
     label: '2 Length Sides',
-    short: '2 Length Sides',
-    blueprintLabel: 'Corridor/Walkway Borders'
+    short: '2 Length Sides'
   },
   four_sides: {
     id: 'four_sides',
     name: 'All 4 Sides (Full Perimeter)',
     label: 'All 4 Sides',
-    short: 'All 4 Sides',
-    blueprintLabel: 'Full Perimeter'
+    short: 'All 4 Sides'
   }
 };
 
-// In-Memory Application State
+// In-Memory Application State & Manual Override Tracking
 const DEFAULT_STATE = {
   matType: 'heavy_8250',
   width: 5,
@@ -112,7 +108,10 @@ const DEFAULT_STATE = {
   edgingSides: 'none',
   region: 'Luzon',
   bracket: 'SRP',
-  isAdmin: false
+  isAdmin: false,
+  isAdhesiveOverridden: false,
+  isEdgingProfileOverridden: false,
+  isEdgingSidesOverridden: false
 };
 
 const state = { ...DEFAULT_STATE };
@@ -122,7 +121,7 @@ const ADMIN_PASSWORD = 'grb123';
 let pendingAdminAction = null;
 let pendingOverrideAction = null;
 
-// 2. Format Currency (PHP)
+// 2. Format Currency (Philippine Peso ₱XX,XXX.XX)
 function formatPHP(num) {
   return new Intl.NumberFormat('en-PH', {
     style: 'currency',
@@ -132,25 +131,28 @@ function formatPHP(num) {
   }).format(num || 0);
 }
 
-// 3. Automatic Detection Logic
+// 3. Automatic Detection Engine
 function getAutoSettings(matType, width, length) {
   const spec = MAT_SPECS[matType];
   const isWidthExceeded = width > spec.standardWidth;
   const isLengthExceeded = length > spec.standardLength;
   
+  // Automatically enable seam adhesive if dimensions exceed standard master roll
   let autoAdhesive = (isWidthExceeded || isLengthExceeded);
   let autoEdgingSides = 'none';
   let autoEdgingProfile = 'none';
 
   if (matType === 'carpet_3100_3' || matType === 'carpet_3100_4') {
+    // Carpet 3100 Rule 7: Factory length edges exist. Default edging to 2 raw cut width ends.
     autoEdgingSides = 'two_width';
     autoEdgingProfile = 'low_profile';
   } else if (matType === 'wet_area_3') {
+    // Wet Area Mat Rule 8: Seam adhesive & applied edging strictly disabled.
     autoAdhesive = false;
     autoEdgingSides = 'none';
     autoEdgingProfile = 'none';
   } else {
-    // Non-Carpet Matting
+    // Heavy Traffic 8250 & Medium Traffic 6050: Default to No Edging
     autoEdgingSides = 'none';
     autoEdgingProfile = 'none';
   }
@@ -164,9 +166,16 @@ function getAutoSettings(matType, width, length) {
 
 function applyAutoDetection() {
   const auto = getAutoSettings(state.matType, state.width, state.length);
-  state.useAdhesive = auto.useAdhesive;
-  state.edgingSides = auto.edgingSides;
-  state.edgingProfile = auto.edgingProfile;
+  
+  if (!state.isAdhesiveOverridden) {
+    state.useAdhesive = auto.useAdhesive;
+  }
+  if (!state.isEdgingProfileOverridden) {
+    state.edgingProfile = auto.edgingProfile;
+  }
+  if (!state.isEdgingSidesOverridden) {
+    state.edgingSides = auto.edgingSides;
+  }
 }
 
 // 4. Calculation Core Engine (Two-Part Pricing Engine & Rules 1-8)
@@ -203,7 +212,7 @@ function calculateOrder(input) {
 
   // Assembly Rules Logic (1 - 8)
   if (isWetArea) {
-    // Rule 8: Wet Area Mat Exception
+    // Rule 8: Wet Area Mat Special Exception
     if (width > 3) {
       res.isValid = false;
       res.errorMessage = 'Rule 8: Wet Area Mat cannot exceed 3.0 ft width limit.';
@@ -225,24 +234,25 @@ function calculateOrder(input) {
     }
     res.roundedLength = charged;
     res.cols = 1; res.rows = 1;
-    res.activeRule = 'Rule 8: Wet Area Mat Special Exception (3 ft x 40 ft)';
-    res.ruleDescription = `Custom length of ${length.toFixed(1)} ft is rounded UP to ${charged}.0 ft chargeable standard cut. Leftover cuts are non-reusable. No seam adhesive or perimeter edging applied.`;
+    res.activeRule = 'Rule 8: Wet Area Mat Special Exception (3 ft x 40 ft Master Roll)';
+    res.ruleDescription = `Custom length of ${length.toFixed(1)} ft automatically rounds UP to ${charged}.0 ft chargeable standard length cut. Leftover cut material is non-reusable scrap. No seam adhesive or perimeter edging permitted.`;
 
-    res.mattingCost = (3 * res.roundedLength) * spec.costPerSqFt;
+    res.mattingCost = (3.0 * res.roundedLength) * spec.costPerSqFt;
     res.seamAdhesiveLength = 0;
     res.edgingLength = 0;
     res.edgingAdhesiveLength = 0;
 
   } else {
-    // Standard and Carpet Matting
+    // Standard and Carpet Matting Rules 1-7
     res.cols = Math.ceil(width / spec.standardWidth);
     res.rows = Math.ceil(length / spec.standardLength);
 
     const isWidthExceeded = width > spec.standardWidth;
     const isLengthExceeded = length > spec.standardLength;
     const hasEdging = edgingProfile !== 'none' && edgingSides !== 'none';
+    const is4SideEdging = hasEdging && edgingSides === 'four_sides';
 
-    // Seam calculations
+    // Seam adhesive length calculations from actual manufacturing cuts
     const longSeams = res.cols > 1 ? (res.cols - 1) * length : 0;
     const transSeams = res.rows > 1 ? (res.rows - 1) * width : 0;
     res.seamAdhesiveLength = useAdhesive ? (longSeams + transSeams) : 0;
@@ -257,37 +267,66 @@ function calculateOrder(input) {
     }
     res.edgingAdhesiveLength = useAdhesive ? res.edgingLength : 0;
 
-    // Determine Active Rule
+    // Active Assembly Rule Identification
     if (isCarpet) {
-      res.activeRule = 'Rule 7: Carpet 3100 Built-In Edging Exception';
-      res.ruleDescription = `Factory edging is built-into the master roll length sides. Custom widths default to finishing strictly the 2 raw width sides.`;
-    } else if (isWidthExceeded && isLengthExceeded) {
-      if (hasEdging && edgingSides === 'four_sides') {
-        res.activeRule = 'Rule 6: Exceeding Standard Width & Length with 4-side Edging';
-        res.ruleDescription = `Grid assembly required. Both width and length exceed master roll. Seam adhesive applied. Edging applied to all 4 outer sides.`;
+      if (isWidthExceeded && isLengthExceeded) {
+        if (is4SideEdging) {
+          res.activeRule = 'Rule 6 & 7: Grid Expansion with 4-Side Edging (Carpet 3100)';
+          res.ruleDescription = `Grid assembly required (${res.cols} cols x ${res.rows} rows). Longitudinal and transverse seam adhesive applied. Selected 4-side edging profile applied around outer perimeter.`;
+        } else {
+          res.activeRule = 'Rule 3 & 7: Grid Expansion (Carpet 3100 Built-In Edging)';
+          res.ruleDescription = `Grid assembly required (${res.cols} cols x ${res.rows} rows). Seam adhesive applied along all grid seams. Factory length edging exists on outer roll edges; raw width ends edged per selection.`;
+        }
+      } else if (isWidthExceeded) {
+        if (is4SideEdging) {
+          res.activeRule = 'Rule 4 & 7: Exceeding Standard Width with 4-Side Edging (Carpet 3100)';
+          res.ruleDescription = `Master roll sliced into ${res.cols} width panels joined with longitudinal seam adhesive. Selected edging profile applied around all 4 outer sides.`;
+        } else {
+          res.activeRule = 'Rule 1 & 7: Exceeding Standard Width (Carpet 3100)';
+          res.ruleDescription = `Master roll sliced into ${res.cols} width panels joined along longitudinal seams. Factory edging exists along length; raw width ends finished per selection.`;
+        }
+      } else if (isLengthExceeded) {
+        if (is4SideEdging) {
+          res.activeRule = 'Rule 5 & 7: Exceeding Standard Length with 4-Side Edging (Carpet 3100)';
+          res.ruleDescription = `Length rolls butt-jointed end-to-end with transverse seam adhesive. Selected edging profile applied around all 4 outer sides.`;
+        } else {
+          res.activeRule = 'Rule 2 & 7: Exceeding Standard Length (Carpet 3100)';
+          res.ruleDescription = `Segments butt-jointed end-to-end with transverse seam adhesive. Factory edging exists along length; raw width ends finished per selection.`;
+        }
       } else {
-        res.activeRule = 'Rule 3: Exceeding Standard Width & Length w/o Edging';
-        res.ruleDescription = `Grid assembly required. Both width and length exceed master roll. Seam adhesive applied along all joining grid seams.`;
-      }
-    } else if (isWidthExceeded) {
-      if (hasEdging && edgingSides === 'four_sides') {
-        res.activeRule = 'Rule 4: Exceeding Standard Width with 4-side Edging';
-        res.ruleDescription = `Width panels joined with longitudinal seam adhesive. Chosen edging profile applied around all 4 outer sides.`;
-      } else {
-        res.activeRule = 'Rule 1: Exceeding Standard Width w/o Edging';
-        res.ruleDescription = `Width exceeds standard roll size. Master roll sliced into multiple panels bonded with seam adhesive along joining length.`;
-      }
-    } else if (isLengthExceeded) {
-      if (hasEdging && edgingSides === 'four_sides') {
-        res.activeRule = 'Rule 5: Exceeding Standard Length with 4-side Edging';
-        res.ruleDescription = `Length rolls joined end-to-end with transverse width seam adhesive. Chosen edging profile applied around all 4 outer sides.`;
-      } else {
-        res.activeRule = 'Rule 2: Exceeding Standard Length w/o Edging';
-        res.ruleDescription = `Length exceeds standard roll size. Segments butt-jointed end-to-end. Seam adhesive applied along transverse joining seams.`;
+        res.activeRule = 'Rule 7: Carpet 3100 Built-In Edging Exception';
+        res.ruleDescription = `Factory edging is manufactured directly into both length sides of the master roll. Applied edging defaults strictly to 2 Width Sides (2 x Width) to finish raw cut width ends.`;
       }
     } else {
-      res.activeRule = 'Standard Roll Cut';
-      res.ruleDescription = `Single continuous panel extracted from standard master roll.`;
+      // Heavy Traffic 8250 or Medium Traffic 6050
+      if (isWidthExceeded && isLengthExceeded) {
+        if (is4SideEdging) {
+          res.activeRule = 'Rule 6: Exceeding Standard Width & Length with 4-Side Edging';
+          res.ruleDescription = `Grid assembly required (${res.cols} cols x ${res.rows} rows). Both width and length exceed master roll. Seam adhesive applied along longitudinal and transverse grid seams. Edging applied to all 4 outer sides.`;
+        } else {
+          res.activeRule = 'Rule 3: Exceeding Standard Width & Length w/o Edging';
+          res.ruleDescription = `Grid assembly required (${res.cols} cols x ${res.rows} rows). Both width and length exceed master roll. Seam adhesive applied along both longitudinal and transverse grid seams.`;
+        }
+      } else if (isWidthExceeded) {
+        if (is4SideEdging) {
+          res.activeRule = 'Rule 4: Exceeding Standard Width with 4-Side Edging';
+          res.ruleDescription = `Width panels joined with longitudinal seam adhesive. Selected edging profile applied around all 4 outer sides. Perimeter = 2 x Width + 2 x Length.`;
+        } else {
+          res.activeRule = 'Rule 1: Exceeding Standard Width w/o Edging';
+          res.ruleDescription = `Width exceeds standard roll size (${spec.standardWidth} ft). Master roll sliced into ${res.cols} width panels joined with longitudinal seam adhesive.`;
+        }
+      } else if (isLengthExceeded) {
+        if (is4SideEdging) {
+          res.activeRule = 'Rule 5: Exceeding Standard Length with 4-Side Edging';
+          res.ruleDescription = `Length rolls butt-jointed end-to-end with transverse seam adhesive. Selected edging profile applied around all 4 outer sides. Perimeter = 2 x Width + 2 x Length.`;
+        } else {
+          res.activeRule = 'Rule 2: Exceeding Standard Length w/o Edging';
+          res.ruleDescription = `Length exceeds standard roll size (${spec.standardLength} ft). Additional roll segments butt-jointed end-to-end with transverse seam adhesive.`;
+        }
+      } else {
+        res.activeRule = 'Standard Roll Cut';
+        res.ruleDescription = `Single continuous panel extracted from standard master roll (${spec.standardWidth} ft x ${spec.standardLength} ft).`;
+      }
     }
 
     res.mattingCost = width * length * spec.costPerSqFt;
@@ -303,15 +342,15 @@ function calculateOrder(input) {
   res.edgingAdhesiveCost = res.edgingAdhesiveLength * ADHESIVE_WASTE_FACTOR * ADHESIVE_COST_PER_LN_FT;
 
   // TWO-PART PRICING ENGINE
-  // Part 1: Matting Material + Fixed Labor Cost
+  // Part 1: Matting Material + Fixed Labor Cost (Divisor = Regional Cost Basis)
   res.part1DirectCost = res.mattingCost + res.laborCost;
   res.part1PriceExclVat = res.part1DirectCost / res.costPercentage;
 
-  // Part 2: Accessories Valuation (Adhesive + Edging with +5% waste factor) / 0.85 margin
+  // Part 2: Accessories Valuation (Adhesive + Edging with +5% waste factor) / 0.85 margin basis
   res.part2DirectCost = res.seamAdhesiveCost + res.edgingCost + res.edgingAdhesiveCost;
   res.part2PriceExclVat = res.part2DirectCost > 0 ? (res.part2DirectCost / 0.85) : 0;
 
-  // Total Valuation
+  // Total Valuation & Statutory VAT (12%)
   res.totalCost = res.part1DirectCost + res.part2DirectCost;
   res.sellingPriceExclVat = res.part1PriceExclVat + res.part2PriceExclVat;
   res.vatAmount = res.sellingPriceExclVat * VAT_RATE;
@@ -320,14 +359,14 @@ function calculateOrder(input) {
   return res;
 }
 
-// 5. Blueprint Canvas Rendering (Dynamic SVG)
+// 5. Blueprint Canvas Rendering Engine (Dynamic SVG)
 function renderBlueprint(calc) {
   const container = document.getElementById('blueprint-canvas-container');
   const scaleTag = document.getElementById('blueprint-scale-tag');
 
   if (!calc.isValid || calc.width <= 0 || calc.length <= 0) {
     scaleTag.textContent = 'Scale: N/A';
-    container.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px; padding:2rem 0;">Dimension constraint prevents layout preview</div>';
+    container.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px; padding:1.5rem 0;">Dimension constraint prevents layout preview</div>';
     return;
   }
 
@@ -335,8 +374,8 @@ function renderBlueprint(calc) {
   const physLen = calc.matType === 'wet_area_3' ? calc.roundedLength : calc.length;
   const physWid = calc.matType === 'wet_area_3' ? 3 : calc.width;
 
-  const pad = 35;
-  const scale = Math.min((480 - 2 * pad) / physWid, (280 - 2 * pad) / physLen, 35);
+  const pad = 30;
+  const scale = Math.min((420 - 2 * pad) / physWid, (160 - 2 * pad) / physLen, 28);
   scaleTag.textContent = `Scale: 1 ft = ${Math.round(scale)}px`;
 
   const svgW = physWid * scale + 2 * pad;
@@ -351,96 +390,107 @@ function renderBlueprint(calc) {
         <line x1="0" y1="0" x2="0" y2="8" stroke="#fca5a5" stroke-width="1.5" />
       </pattern>
     </defs>
-    <!-- Base Canvas -->
-    <rect x="${pad}" y="${pad}" width="${w}" height="${h}" fill="#cbd5e1" stroke="#94a3b8" stroke-width="2" rx="3" />`;
+    <!-- Base Mat Canvas -->
+    <rect x="${pad}" y="${pad}" width="${w}" height="${h}" fill="#cbd5e1" stroke="#94a3b8" stroke-width="1.5" rx="2" />`;
 
-  // Carpet 3100 Texture Graphics
-  if (calc.matType.startsWith('carpet_3100')) {
-    // Rib lines running along the length axis
-    for (let x = pad + 10; x < pad + w; x += 10) {
+  // Carpet 3100 Parallel Texture Ribs & Built-In Factory Edging Graphics
+  const isCarpet = calc.matType.startsWith('carpet_3100');
+  if (isCarpet) {
+    // Render vertical parallel solid lines running along the length axis
+    for (let x = pad + 6; x < pad + w - 4; x += 6) {
         svg += `<line x1="${x}" y1="${pad}" x2="${x}" y2="${pad + h}" class="rib-line" />`;
     }
-    // Distinct factory built-in length edges
+    // Render distinct factory built-in length edges along both length sides
     svg += `<rect x="${pad}" y="${pad}" width="4" height="${h}" class="factory-edge" />`;
     svg += `<rect x="${pad + w - 4}" y="${pad}" width="4" height="${h}" class="factory-edge" />`;
   }
 
   if (calc.matType === 'wet_area_3') {
-    // Actual requested customer area
+    // Requested customer area
     svg += `<rect x="${pad}" y="${pad}" width="${calc.width * scale}" height="${calc.length * scale}" fill="#94a3b8" stroke="#64748b" stroke-width="1" />`;
-    // Discarded charged cut strips
+    // Discarded charged cut strips (non-reusable scrap waste)
     if (calc.width < 3) {
-      svg += `<rect x="${pad + calc.width * scale}" y="${pad}" width="${(3 - calc.width) * scale}" height="${physLen * scale}" fill="url(#waste-stripe)" opacity="0.6" />`;
+      svg += `<rect x="${pad + calc.width * scale}" y="${pad}" width="${(3 - calc.width) * scale}" height="${physLen * scale}" fill="url(#waste-stripe)" opacity="0.75" />`;
     }
     if (calc.length < calc.roundedLength) {
-      svg += `<rect x="${pad}" y="${pad + calc.length * scale}" width="${calc.width * scale}" height="${(calc.roundedLength - calc.length) * scale}" fill="url(#waste-stripe)" opacity="0.6" />`;
+      svg += `<rect x="${pad}" y="${pad + calc.length * scale}" width="${calc.width * scale}" height="${(calc.roundedLength - calc.length) * scale}" fill="url(#waste-stripe)" opacity="0.75" />`;
     }
   } else {
-    // Seams
+    // Joining Seams (Only render seams actually calculated by engine)
     for (let c = 1; c < calc.cols; c++) {
       const cx = pad + c * spec.standardWidth * scale;
-      svg += `<line x1="${cx}" y1="${pad}" x2="${cx}" y2="${pad + h}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4" />`;
+      svg += `<line x1="${cx}" y1="${pad}" x2="${cx}" y2="${pad + h}" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 3" />`;
     }
     for (let r = 1; r < calc.rows; r++) {
       const cy = pad + r * spec.standardLength * scale;
-      svg += `<line x1="${pad}" y1="${cy}" x2="${pad + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4" />`;
+      svg += `<line x1="${pad}" y1="${cy}" x2="${pad + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 3" />`;
     }
 
     // Applied Edging Border Visualization
     if (calc.edgingProfile !== 'none' && calc.edgingSides !== 'none') {
       if (calc.edgingSides === 'four_sides') {
-        svg += `<rect x="${pad - 3}" y="${pad - 4}" width="${w + 6}" height="5" fill="${edgingColor}" rx="1" />
-                <rect x="${pad - 3}" y="${pad + h - 1}" width="${w + 6}" height="5" fill="${edgingColor}" rx="1" />
-                <rect x="${pad - 4}" y="${pad - 3}" width="5" height="${h + 6}" fill="${edgingColor}" rx="1" />
-                <rect x="${pad + w - 1}" y="${pad - 3}" width="5" height="${h + 6}" fill="${edgingColor}" rx="1" />`;
+        svg += `<rect x="${pad - 2}" y="${pad - 3}" width="${w + 4}" height="4" fill="${edgingColor}" rx="1" />
+                <rect x="${pad - 2}" y="${pad + h - 1}" width="${w + 4}" height="4" fill="${edgingColor}" rx="1" />
+                <rect x="${pad - 3}" y="${pad - 2}" width="4" height="${h + 4}" fill="${edgingColor}" rx="1" />
+                <rect x="${pad + w - 1}" y="${pad - 2}" width="4" height="${h + 4}" fill="${edgingColor}" rx="1" />`;
       } else if (calc.edgingSides === 'two_width') {
-        svg += `<rect x="${pad}" y="${pad - 4}" width="${w}" height="5" fill="${edgingColor}" rx="1" />
-                <rect x="${pad}" y="${pad + h - 1}" width="${w}" height="5" fill="${edgingColor}" rx="1" />`;
+        svg += `<rect x="${pad}" y="${pad - 3}" width="${w}" height="4" fill="${edgingColor}" rx="1" />
+                <rect x="${pad}" y="${pad + h - 1}" width="${w}" height="4" fill="${edgingColor}" rx="1" />`;
       } else if (calc.edgingSides === 'two_length') {
-        svg += `<rect x="${pad - 4}" y="${pad}" width="5" height="${h}" fill="${edgingColor}" rx="1" />
-                <rect x="${pad + w - 1}" y="${pad}" width="5" height="${h}" fill="${edgingColor}" rx="1" />`;
+        svg += `<rect x="${pad - 3}" y="${pad}" width="4" height="${h}" fill="${edgingColor}" rx="1" />
+                <rect x="${pad + w - 1}" y="${pad}" width="4" height="${h}" fill="${edgingColor}" rx="1" />`;
       }
     }
   }
 
-  // Dimension Callouts
-  svg += `<line x1="${pad}" y1="${pad - 14}" x2="${pad + w}" y2="${pad - 14}" stroke="#64748b" stroke-width="1"/>
-          <text x="${pad + w / 2}" y="${pad - 18}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#334155">${calc.width} ft</text>
-          <line x1="${pad - 14}" y1="${pad}" x2="${pad - 14}" y2="${pad + h}" stroke="#64748b" stroke-width="1"/>
-          <text x="${pad - 18}" y="${pad + h / 2}" text-anchor="middle" transform="rotate(-90 ${pad - 18} ${pad + h / 2})" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#334155">${calc.length} ft</text>
-          <text x="${pad + w / 2}" y="${pad + h / 2 + 4}" text-anchor="middle" font-family="Montserrat, sans-serif" font-size="9" font-weight="700" fill="#1e293b">${calc.matType === 'wet_area_3' ? `Charged 3.0 x ${calc.roundedLength}.0 ft` : `${calc.cols} x${calc.rows} Panels`}</text>
+  // Dimension Callouts & Text Labels
+  svg += `<line x1="${pad}" y1="${pad - 10}" x2="${pad + w}" y2="${pad - 10}" stroke="#64748b" stroke-width="1"/>
+          <text x="${pad + w / 2}" y="${pad - 13}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" font-weight="700" fill="#334155">${calc.width} ft</text>
+          <line x1="${pad - 10}" y1="${pad}" x2="${pad - 10}" y2="${pad + h}" stroke="#64748b" stroke-width="1"/>
+          <text x="${pad - 14}" y="${pad + h / 2}" text-anchor="middle" transform="rotate(-90 ${pad - 14} ${pad + h / 2})" font-family="JetBrains Mono, monospace" font-size="9" font-weight="700" fill="#334155">${calc.length} ft</text>
+          <text x="${pad + w / 2}" y="${pad + h / 2 + 3}" text-anchor="middle" font-family="Montserrat, sans-serif" font-size="9" font-weight="700" fill="#0f172a">${calc.matType === 'wet_area_3' ? `Charged 3.0 x ${calc.roundedLength}.0 ft` : `${calc.cols} x${calc.rows} Panels`}</text>
   </svg>`;
 
   container.innerHTML = svg;
 
-  // Legends Updates
-  document.getElementById('legend-seam-text').textContent = `Adhesive Seam (${calc.seamAdhesiveLength.toFixed(1)} ft)`;
+  // Synchronize Legends with Calculation State
+  const seamLeg = document.getElementById('legend-seam-item');
+  if (calc.seamAdhesiveLength > 0 && calc.matType !== 'wet_area_3') {
+    seamLeg.classList.remove('hidden');
+    document.getElementById('legend-seam-text').textContent = `Adhesive Seam (${calc.seamAdhesiveLength.toFixed(1)} ft)`;
+  } else {
+    seamLeg.classList.add('hidden');
+  }
+
   const edgeLeg = document.getElementById('legend-edging-item');
   if (calc.edgingProfile !== 'none' && calc.edgingSides !== 'none' && calc.matType !== 'wet_area_3') {
     edgeLeg.classList.remove('hidden');
     document.getElementById('legend-edging-swatch').style.backgroundColor = edgingColor;
     const profileLabel = calc.edgingProfile === 'low_profile' ? 'Low Profile' : 'High Profile';
     const presetObj = EDGING_PRESETS[calc.edgingSides] || EDGING_PRESETS.four_sides;
-    document.getElementById('legend-edging-text').textContent = `${profileLabel} \u2013 ${presetObj.label || presetObj.short} (${calc.edgingLength.toFixed(1)} ft)`;
+    document.getElementById('legend-edging-text').textContent = `Applied ${profileLabel} \u2013 ${presetObj.short} (${calc.edgingLength.toFixed(1)} ft)`;
   } else {
     edgeLeg.classList.add('hidden');
   }
+
+  const factoryLeg = document.getElementById('legend-factory-item');
+  factoryLeg.classList.toggle('hidden', !isCarpet);
 
   const wasteLeg = document.getElementById('legend-waste-item');
   const hasWaste = calc.matType === 'wet_area_3' && (calc.width < 3 || calc.length < calc.roundedLength);
   wasteLeg.classList.toggle('hidden', !hasWaste);
 }
 
-// 6. Detailed Manufacturing Data Generators (Admin)
+// 6. Detailed Manufacturing Data Generators
 function getDetailedCostStrings(calc, spec) {
   const isWet = calc.matType === 'wet_area_3';
 
   const mattingSub = isWet
-    ? `Rule 8: Charged 3.0 ft \u00D7 ${calc.roundedLength}.0 ft (${(3 * calc.roundedLength).toFixed(1)} sq. ft.) @ ${formatPHP(spec.costPerSqFt)} / sq. ft.`
+    ? `Rule 8: Charged 3.0 ft \u00D7 ${calc.roundedLength}.0 ft (${(3.0 * calc.roundedLength).toFixed(1)} sq. ft.) @ ${formatPHP(spec.costPerSqFt)} / sq. ft.`
     : `${calc.width.toFixed(1)} ft \u00D7 ${calc.length.toFixed(1)} ft (${(calc.width * calc.length).toFixed(1)} sq. ft.) @ ${formatPHP(spec.costPerSqFt)} / sq. ft.`;
 
   let seamSub = '';
-  if (isWet) seamSub = 'Rule 8: No seam adhesive applied (0.0 ft)';
+  if (isWet) seamSub = 'Rule 8: No seam adhesive permitted (0.0 ft)';
   else if (!state.useAdhesive) seamSub = `Bonding disabled: 0.0 ft @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
   else if (calc.seamAdhesiveLength === 0) seamSub = `Seamless cut: Fits master roll width (0.0 ft seam) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
   else seamSub = `${calc.seamAdhesiveLength.toFixed(1)} ft raw seam \u2192 ${(calc.seamAdhesiveLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft (+5% waste factor) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
@@ -450,19 +500,19 @@ function getDetailedCostStrings(calc, spec) {
   const profileLabel = calc.edgingProfile === 'low_profile' ? 'Low Profile Edging' : 'High Profile Edging';
   const presetObj = EDGING_PRESETS[calc.edgingSides] || EDGING_PRESETS.four_sides;
 
-  if (isWet) edgingSub = 'Rule 8: No perimeter edging applied (0.0 ft)';
+  if (isWet) edgingSub = 'Rule 8: No perimeter edging permitted (0.0 ft)';
   else if (calc.edgingProfile === 'none' || calc.edgingSides === 'none' || calc.edgingLength === 0) edgingSub = 'No perimeter edging specified (0.0 ft)';
   else edgingSub = `${profileLabel} \u2013 ${presetObj.name}: ${calc.edgingLength.toFixed(1)} ft @ ${formatPHP(edgingRate)} / ft`;
 
   let edgingAdhesiveSub = '';
-  if (isWet) edgingAdhesiveSub = 'Rule 8: No edging adhesive applied (0.0 ft)';
+  if (isWet) edgingAdhesiveSub = 'Rule 8: No edging adhesive permitted (0.0 ft)';
   else if (!state.useAdhesive || calc.edgingProfile === 'none' || calc.edgingSides === 'none' || calc.edgingLength === 0) edgingAdhesiveSub = 'No edging adhesive required (0.0 ft)';
   else edgingAdhesiveSub = `Adhesive for ${presetObj.label || presetObj.short}: ${calc.edgingLength.toFixed(1)} ft raw \u2192 ${(calc.edgingLength * ADHESIVE_WASTE_FACTOR).toFixed(1)} ft (+5% waste factor) @ ${formatPHP(ADHESIVE_COST_PER_LN_FT)} / ft`;
 
   return { mattingSub, seamSub, edgingSub, edgingAdhesiveSub };
 }
 
-// 7. UI Synchronization
+// 7. UI Synchronization & Automatic Detection Indicators
 function updateUI() {
   const calc = calculateOrder(state);
   const spec = MAT_SPECS[state.matType];
@@ -496,11 +546,17 @@ function updateUI() {
 
     btn.addEventListener('click', () => {
       state.matType = s.id;
+      // Reset manual override flags when changing product selection
+      state.isAdhesiveOverridden = false;
+      state.isEdgingProfileOverridden = false;
+      state.isEdgingSidesOverridden = false;
       applyAutoDetection();
       
-      // Update inputs logically
-      if (s.id === 'wet_area_3' && state.width > 3) state.width = 3;
-      if (state.width > 20) state.width = s.standardWidth;
+      // Enforce bounds when switching mat types
+      if (s.id === 'wet_area_3') {
+        if (state.width > 3) state.width = 3;
+        if (state.length > 10) state.length = 10;
+      }
       
       document.getElementById('width-number-input').value = state.width;
       document.getElementById('width-range-input').value = state.width;
@@ -510,6 +566,38 @@ function updateUI() {
     });
     grid.appendChild(btn);
   });
+
+  // Auto-Detection vs Override Status Badges
+  const adhesiveBadge = document.getElementById('adhesive-status-badge');
+  if (adhesiveBadge) {
+    if (isWet) {
+      adhesiveBadge.className = 'badge-override';
+      adhesiveBadge.textContent = 'Disabled (Rule 8)';
+    } else if (state.isAdhesiveOverridden) {
+      adhesiveBadge.className = 'badge-override';
+      adhesiveBadge.textContent = 'Manual Override';
+    } else {
+      adhesiveBadge.className = 'badge-auto';
+      adhesiveBadge.textContent = 'Auto-Detected';
+    }
+  }
+
+  const edgingBadge = document.getElementById('edging-status-badge');
+  if (edgingBadge) {
+    if (isWet) {
+      edgingBadge.className = 'badge-override';
+      edgingBadge.textContent = 'Disabled (Rule 8)';
+    } else if (state.isEdgingProfileOverridden || state.isEdgingSidesOverridden) {
+      edgingBadge.className = 'badge-override';
+      edgingBadge.textContent = 'Manual Override';
+    } else if (state.matType.startsWith('carpet_3100')) {
+      edgingBadge.className = 'badge-auto';
+      edgingBadge.textContent = '2-Width Auto Default';
+    } else {
+      edgingBadge.className = 'badge-auto';
+      edgingBadge.textContent = 'Auto-Detected';
+    }
+  }
 
   // Sliders and Notices
   document.getElementById('width-range-input').max = isWet ? '3' : '20';
@@ -528,14 +616,14 @@ function updateUI() {
     errBox.classList.add('hidden');
   }
 
-  // Rule Indicator
+  // Active Rule Indicator
   const ruleCard = document.getElementById('active-rule-card');
   if (ruleCard) {
     document.getElementById('active-rule-title').textContent = calc.activeRule;
     document.getElementById('active-rule-desc').textContent = calc.ruleDescription;
   }
 
-  // Highlight Options
+  // Highlight Option Buttons
   document.querySelectorAll('[data-adhesive]').forEach(btn => {
     btn.classList.toggle('active', (btn.dataset.adhesive === 'true') === state.useAdhesive);
     btn.disabled = isWet;
@@ -587,7 +675,7 @@ function updateUI() {
   document.getElementById('adhesive-usage-length').textContent = `${calc.adhesiveLengthWithWaste.toFixed(1)} ln. ft.`;
   document.getElementById('edging-usage-length').textContent = calc.edgingProfile === 'none' || calc.edgingSides === 'none' || isWet ? 'No Edging Applied' : `${calc.edgingLength.toFixed(1)} ln. ft.`;
 
-  // Itemized Two-Part Costs 
+  // Itemized Two-Part Costs
   const detail = getDetailedCostStrings(calc, spec);
   const costValues = [
     { el: 'cost-val-matting', sub: 'cost-sub-matting', val: calc.mattingCost, text: detail.mattingSub },
@@ -603,10 +691,10 @@ function updateUI() {
     if (s) s.textContent = c.text;
   });
 
-  // Updated Dual Display Layout
-  document.getElementById('price-excl-vat').textContent = `${formatPHP(calc.sellingPriceExclVat)} (VAT EX)`;
+  // Prominent Side-by-Side Selling Price Display (VAT EX | VAT INC)
+  document.getElementById('price-excl-vat').textContent = formatPHP(calc.sellingPriceExclVat);
   document.getElementById('price-vat').textContent = formatPHP(calc.vatAmount);
-  document.getElementById('price-inc-vat').textContent = calc.isValid ? `${formatPHP(calc.finalSellingPrice)} (VAT INC)` : '₱0.00';
+  document.getElementById('price-inc-vat').textContent = calc.isValid ? formatPHP(calc.finalSellingPrice) : '₱0.00';
 }
 
 function resetCalculator() {
@@ -621,7 +709,7 @@ function resetCalculator() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Intercept manual override interactions
+// Intercept manual override interactions with confirmation pop-up modal
 function handleAccessoryOverride(type, value) {
   const autoSettings = getAutoSettings(state.matType, state.width, state.length);
   let isOverride = false;
@@ -632,31 +720,55 @@ function handleAccessoryOverride(type, value) {
 
   if (isOverride) {
     pendingOverrideAction = () => {
-      if (type === 'adhesive') state.useAdhesive = value;
+      if (type === 'adhesive') {
+        state.useAdhesive = value;
+        state.isAdhesiveOverridden = true;
+      }
       if (type === 'profile') {
         state.edgingProfile = value;
-        if (value === 'none') state.edgingSides = 'none';
-        else if (state.edgingSides === 'none') state.edgingSides = 'four_sides';
+        state.isEdgingProfileOverridden = true;
+        if (value === 'none') {
+          state.edgingSides = 'none';
+          state.isEdgingSidesOverridden = true;
+        } else if (state.edgingSides === 'none') {
+          state.edgingSides = 'four_sides';
+          state.isEdgingSidesOverridden = true;
+        }
       }
       if (type === 'sides') {
         state.edgingSides = value;
-        if (value === 'none') state.edgingProfile = 'none';
-        else if (state.edgingProfile === 'none') state.edgingProfile = 'low_profile';
+        state.isEdgingSidesOverridden = true;
+        if (value === 'none') {
+          state.edgingProfile = 'none';
+          state.isEdgingProfileOverridden = true;
+        } else if (state.edgingProfile === 'none') {
+          state.edgingProfile = 'low_profile';
+          state.isEdgingProfileOverridden = true;
+        }
       }
       updateUI();
       document.getElementById('override-confirm-modal').classList.add('hidden');
     };
     document.getElementById('override-confirm-modal').classList.remove('hidden');
   } else {
-    // Matches auto-detected setting perfectly, apply silently
-    if (type === 'adhesive') state.useAdhesive = value;
-    if (type === 'profile') state.edgingProfile = value;
-    if (type === 'sides') state.edgingSides = value;
+    // Value matches auto-detected default setting, apply without warning prompt
+    if (type === 'adhesive') {
+      state.useAdhesive = value;
+      state.isAdhesiveOverridden = false;
+    }
+    if (type === 'profile') {
+      state.edgingProfile = value;
+      state.isEdgingProfileOverridden = false;
+    }
+    if (type === 'sides') {
+      state.edgingSides = value;
+      state.isEdgingSidesOverridden = false;
+    }
     updateUI();
   }
 }
 
-// 8. Bootstrap
+// 8. Bootstrap & Event Handlers
 document.addEventListener('DOMContentLoaded', () => {
   const wNum = document.getElementById('width-number-input');
   const wRange = document.getElementById('width-range-input');
@@ -667,6 +779,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state[type] = parseFloat(val) || 0;
     if (type === 'width') { wRange.value = state.width; wNum.value = state.width; }
     if (type === 'length') { lRange.value = state.length; lNum.value = state.length; }
+    
+    // Dimension changes re-trigger auto-detection for non-overridden controls
     applyAutoDetection();
     updateUI();
   };
@@ -676,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
   lNum.addEventListener('input', e => onDimensionChange(e.target.value, 'length'));
   lRange.addEventListener('input', e => onDimensionChange(e.target.value, 'length'));
 
-  // Custom Accessory Options (with Override Checking)
+  // Custom Accessory Options (with Manual Override Confirmation)
   document.querySelectorAll('[data-adhesive]').forEach(btn => {
     btn.addEventListener('click', () => handleAccessoryOverride('adhesive', btn.dataset.adhesive === 'true'));
   });
@@ -698,7 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetBtn = document.getElementById('btn-reset-calculator');
   if (resetBtn) resetBtn.addEventListener('click', resetCalculator);
 
-  // Administrative Logins & Modals
+  // Administrative Access & Modals
   const adminAuthToggleBtn = document.getElementById('admin-auth-toggle-btn');
   if (adminAuthToggleBtn) {
     adminAuthToggleBtn.addEventListener('click', () => {
@@ -726,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById(id).addEventListener('click', () => document.getElementById('password-prompt-modal').classList.add('hidden'));
   });
 
-  // Cost Breakdown Modal Populators
+  // Cost Breakdown Modal Populator
   function openCostBreakdownModal() {
     const calc = calculateOrder(state);
     const spec = MAT_SPECS[calc.matType];
@@ -742,7 +856,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('modal-cost-sub-edging-adhesive').textContent = detail.edgingAdhesiveSub;
     document.getElementById('modal-cost-labor').textContent = formatPHP(calc.laborCost);
     
-    // Two Part Update
+    // Two-Part Engine Multipliers
     document.getElementById('modal-cost-part1').textContent = formatPHP(calc.part1DirectCost);
     document.getElementById('modal-cost-part2').textContent = formatPHP(calc.part2DirectCost);
     
@@ -807,7 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Final Initialization
-  applyAutoDetection(); // Calculate based on initial load
+  // Initial load and calculation synchronization
+  applyAutoDetection();
   updateUI();
 });
