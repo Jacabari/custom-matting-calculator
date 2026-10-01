@@ -84,12 +84,6 @@ const EDGING_PRESETS = {
     label: '2 Width Sides',
     short: '2 Width Sides'
   },
-  two_length: {
-    id: 'two_length',
-    name: '2 Length Sides (Corridor/Walkway Borders)',
-    label: '2 Length Sides',
-    short: '2 Length Sides'
-  },
   four_sides: {
     id: 'four_sides',
     name: 'All 4 Sides (Full Perimeter)',
@@ -261,7 +255,6 @@ function calculateOrder(input) {
     if (hasEdging) {
       if (edgingSides === 'four_sides') res.edgingLength = (2 * width) + (2 * length);
       else if (edgingSides === 'two_width') res.edgingLength = 2 * width;
-      else if (edgingSides === 'two_length') res.edgingLength = 2 * length;
     } else {
       res.edgingLength = 0;
     }
@@ -436,9 +429,6 @@ function renderBlueprint(calc) {
       } else if (calc.edgingSides === 'two_width') {
         svg += `<rect x="${pad}" y="${pad - 3}" width="${w}" height="4" fill="${edgingColor}" rx="1" />
                 <rect x="${pad}" y="${pad + h - 1}" width="${w}" height="4" fill="${edgingColor}" rx="1" />`;
-      } else if (calc.edgingSides === 'two_length') {
-        svg += `<rect x="${pad - 3}" y="${pad}" width="4" height="${h}" fill="${edgingColor}" rx="1" />
-                <rect x="${pad + w - 1}" y="${pad}" width="4" height="${h}" fill="${edgingColor}" rx="1" />`;
       }
     }
   }
@@ -768,6 +758,11 @@ function handleAccessoryOverride(type, value) {
   }
 }
 
+// Open Guide Modal Protected Handler
+function openGuideModal() {
+  document.getElementById('rules-modal').classList.remove('hidden');
+}
+
 // 8. Bootstrap & Event Handlers
 document.addEventListener('DOMContentLoaded', () => {
   const wNum = document.getElementById('width-number-input');
@@ -812,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetBtn = document.getElementById('btn-reset-calculator');
   if (resetBtn) resetBtn.addEventListener('click', resetCalculator);
 
-  // Administrative Access & Modals
+  // Administrative Access & Guide Access Handlers
   const adminAuthToggleBtn = document.getElementById('admin-auth-toggle-btn');
   if (adminAuthToggleBtn) {
     adminAuthToggleBtn.addEventListener('click', () => {
@@ -821,12 +816,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Password-protect Guide triggers via existing admin auth mechanism
   document.getElementById('btn-open-rules').addEventListener('click', () => {
-    document.getElementById('rules-modal').classList.remove('hidden');
+    requestAdminAccess(openGuideModal, 'Enter administrator password to access the Guide.');
   });
   const footerRulesBtn = document.getElementById('footer-rules-btn');
   if (footerRulesBtn) {
-    footerRulesBtn.addEventListener('click', () => document.getElementById('rules-modal').classList.remove('hidden'));
+    footerRulesBtn.addEventListener('click', () => {
+      requestAdminAccess(openGuideModal, 'Enter administrator password to access the Guide.');
+    });
   }
 
   document.getElementById('btn-open-cost-breakdown').addEventListener('click', () => requestAdminAccess(openCostBreakdownModal));
