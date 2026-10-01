@@ -52,12 +52,12 @@
         </button>
         <div class="v-divider"></div>
 
-        <button id="btn-open-rules" class="btn btn-secondary" type="button" title="View manufacturing assembly rules 1-8">
+        <button id="btn-open-rules" class="btn btn-secondary" type="button" title="View manufacturing assembly guide 1-8">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-xs" aria-hidden="true">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
           </svg>
-          <span>Rules Guide</span>
+          <span>Guide</span>
         </button>
       </div>
     </div>
@@ -171,7 +171,7 @@
             <!-- Row 2: Edging Profile -->
             <div class="accessory-row">
               <div class="flex-center justify-between mb-1">
-                <label class="label-heading mb-0">Edging Profile[cite: 2]</label>
+                <label class="label-heading mb-0">Edging Profile</label>
                 <span id="edging-status-badge" class="badge-auto">Auto-Detected</span>
               </div>
               <div class="segment-pill-group col-3">
@@ -183,11 +183,10 @@
 
             <!-- Row 3: Edging Application -->
             <div class="accessory-row">
-              <label class="label-heading">Edging Application[cite: 2]</label>
-              <div class="segment-pill-group col-4">
+              <label class="label-heading">Edging Application</label>
+              <div class="segment-pill-group col-3">
                 <button type="button" class="btn-segment" data-sides="none">No Edging</button>
                 <button type="button" class="btn-segment" data-sides="two_width">2 Width Sides</button>
-                <button type="button" class="btn-segment" data-sides="two_length">2 Length Sides</button>
                 <button type="button" class="btn-segment active" data-sides="four_sides">All 4 Sides</button>
               </div>
             </div>
@@ -259,7 +258,7 @@
           <div class="legend-grid">
             <div class="legend-item"><span class="swatch swatch-mat"></span><span>Mat Material</span></div>
             <div class="legend-item" id="legend-seam-item"><span class="swatch swatch-seam"></span><span id="legend-seam-text">Adhesive Seam (0.0 ft)</span></div>
-            <div class="legend-item" id="legend-edging-item"><span id="legend-edging-swatch" class="swatch swatch-edging"></span><span id="legend-edging-text">Applied Edging (0.0 ft)[cite: 2]</span></div>
+            <div class="legend-item" id="legend-edging-item"><span id="legend-edging-swatch" class="swatch swatch-edging"></span><span id="legend-edging-text">Applied Edging (0.0 ft)</span></div>
             <div class="legend-item hidden" id="legend-factory-item"><span class="swatch swatch-factory"></span><span>Factory Length Edging (Included - ₱0.00)</span></div>
             <div class="legend-item span-2 hidden" id="legend-waste-item"><span class="swatch swatch-waste"></span><span>Rule 8: Discarded charged cut (non-reusable scrap)</span></div>
           </div>
@@ -313,9 +312,9 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-sm"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </div>
               <div>
-                <span class="metric-label">Edging[cite: 2]</span>
+                <span class="metric-label">Edging</span>
                 <p id="edging-usage-length" class="metric-value font-mono">0.0 ln. ft.</p>
-                <p id="edging-usage-subtext" class="metric-sub">Commercial vinyl edging profile[cite: 2]</p>
+                <p id="edging-usage-subtext" class="metric-sub">Commercial vinyl edging profile</p>
               </div>
             </div>
 
@@ -346,8 +345,8 @@
             </div>
             <div class="cost-row">
               <div>
-                <span class="cost-item-name">3. Perimeter Edging[cite: 2]</span>
-                <p id="cost-sub-edging" class="cost-subtext">Low Profile Edging &bull; 0.0 linear ft @ ₱70.79 / ft[cite: 2]</p>
+                <span class="cost-item-name">3. Perimeter Edging</span>
+                <p id="cost-sub-edging" class="cost-subtext">Low Profile Edging &bull; 0.0 linear ft @ ₱70.79 / ft</p>
               </div>
               <span id="cost-val-edging" class="cost-item-val font-mono">₱0.00</span>
             </div>
@@ -368,7 +367,7 @@
             <div class="cost-row total-row">
               <div>
                 <span class="cost-item-name">Direct Production Cost (Total)</span>
-                <p id="cost-sub-total" class="cost-subtext text-light">Sum of master roll, adhesives, edging &amp; fixed labor[cite: 2]</p>
+                <p id="cost-sub-total" class="cost-subtext text-light">Sum of master roll, adhesives, edging &amp; fixed labor</p>
               </div>
               <span id="cost-val-total" class="cost-val-highlight font-mono">₱0.00</span>
             </div>
@@ -417,7 +416,7 @@
       <div class="flex-center gap-3">
         <span>VAT Rate: 12.0%</span>
         <span>&bull;</span>
-        <button type="button" id="footer-rules-btn" class="btn btn-xs btn-secondary">Assembly Rules 1&ndash;8</button>
+        <button type="button" id="footer-rules-btn" class="btn btn-xs btn-secondary">Guide</button>
       </div>
     </div>
   </footer>
@@ -435,9 +434,9 @@
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
           </svg>
-          <h3 id="modal-rules-title" class="font-bold text-sm">Matting Specifications &amp; Manufacturing Assembly Rules</h3>
+          <h3 id="modal-rules-title" class="font-bold text-sm">Matting Specifications &amp; Manufacturing Assembly Guide</h3>
         </div>
-        <button type="button" id="btn-close-rules-modal" class="btn-close" aria-label="Close assembly rules">&times;</button>
+        <button type="button" id="btn-close-rules-modal" class="btn-close" aria-label="Close assembly guide">&times;</button>
       </div>
       <div class="modal-content" style="overflow-y: auto;">
         
@@ -451,8 +450,8 @@
             <div>Coverage: <strong>60 linear ft / tube</strong></div>
             <div>Adhesive Tube: <strong>₱1,117.73 / tube</strong></div>
             <div>Adhesive Linear Ft: <strong>₱18.62 / ft</strong></div>
-            <div>Low Profile Edging: <strong>₱70.79 / ft[cite: 2]</strong></div>
-            <div>High Profile Edging: <strong>₱204.51 / ft[cite: 2]</strong></div>
+            <div>Low Profile Edging: <strong>₱70.79 / ft</strong></div>
+            <div>High Profile Edging: <strong>₱204.51 / ft</strong></div>
             <div>Fixed Labor Fee: <strong>₱100.00 / order</strong></div>
             <div>Adhesive Waste Factor: <strong>+5% added to linear ft</strong></div>
           </div>
@@ -663,7 +662,7 @@
           </div>
           <div class="doc-tr bg-light">
             <div>
-              <span class="doc-item-title">4. Perimeter Edging[cite: 2]</span>
+              <span class="doc-item-title">4. Perimeter Edging</span>
               <p id="modal-cost-sub-edging" class="doc-item-sub">Low Profile on 4 Sides &bull; 0.0 linear ft @ ₱70.79 / ft</p>
             </div>
             <span id="modal-cost-edging" class="font-mono font-bold text-primary doc-item-price">₱0.00</span>
