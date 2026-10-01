@@ -652,23 +652,31 @@ body {
   color: var(--primary);
 }
 
-/* 5. Production Blueprint & Layout Canvas */
+/* 5. Production Blueprint & Layout Canvas (Landscape Target) */
 .blueprint-box {
   display: flex;
   justify-content: center;
   align-items: center;
   background: #f8fafc;
   border-radius: var(--radius-md);
-  padding: 0.4rem;
+  padding: 0.5rem;
   border: 1px solid var(--border-color);
-  min-height: 140px;
-  max-height: 170px;
+  min-height: 175px;
+  max-height: 215px;
+  width: 100%;
   overflow: hidden;
+}
+
+.blueprint-box svg {
+  width: 100%;
+  height: 100%;
+  max-height: 205px;
+  display: block;
 }
 
 /* SVG Blueprint Styling */
 .rib-line {
-  stroke: rgba(0, 80, 140, 0.18);
+  stroke: rgba(0, 80, 140, 0.22);
   stroke-width: 1.2;
   stroke-linecap: round;
 }
