@@ -727,42 +727,18 @@ body {
   line-height: 1.25;
 }
 
-/* 6. Itemized Cost Summary (Dark Card) */
-.summary-card {
-  background: #0f172a;
-  color: #ffffff;
-  border-radius: var(--radius-lg);
-  padding: 0.75rem 0.875rem;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
 
-.ambient-glow {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  filter: blur(48px);
-}
-.glow-top {
-  top: 0; right: 0;
-  width: 12rem; height: 12rem;
-  background: rgba(0, 80, 140, 0.35);
-}
-.glow-bottom {
-  bottom: 0; left: 0;
-  width: 8rem; height: 8rem;
-  background: rgba(15, 23, 42, 0.8);
-}
+/* --------------------------------------------------------------------------
+   6. SECTION 6 - ITEMIZATION & COMMERCIAL PROPOSAL
+   READABILITY UPDATE - ADAPTIVE STYLING (BASE LIGHT / SCOPED DARK OVERRIDES)
+   -------------------------------------------------------------------------- */
 
+/* Section 6 - Base Light-Theme Structure & Classes */
 .summary-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  border-bottom: 1px solid #1e293b;
+  border-bottom: 1px solid var(--border-light);
   padding-bottom: 0.4rem;
   margin-bottom: 0.4rem;
 }
@@ -771,29 +747,29 @@ body {
   font-size: 0.5625rem;
   font-family: var(--font-mono);
   letter-spacing: 0.08em;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-transform: uppercase;
 }
 
 .summary-title {
   font-size: 0.9375rem;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text-main);
   margin-top: 1px;
 }
 
 .badge-brand {
-  background: rgba(0, 80, 140, 0.3);
-  color: #99bad1;
+  background: var(--primary-light);
+  color: var(--primary);
   font-family: var(--font-mono);
   font-size: 0.5625rem;
   padding: 0.15rem 0.45rem;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(0, 80, 140, 0.5);
+  border: 1px solid var(--primary-border);
   font-weight: 700;
 }
 
-/* Material Metrics View */
+/* Material Metrics View (Free-Access) */
 .metrics-list {
   display: flex;
   flex-direction: column;
@@ -802,9 +778,9 @@ body {
 
 .metric-card {
   padding: 0.35rem 0.5rem;
-  background: rgba(2, 6, 23, 0.6);
+  background: var(--bg-main);
   border-radius: var(--radius-md);
-  border: 1px solid #1e293b;
+  border: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -823,7 +799,7 @@ body {
 
 .metric-label {
   font-size: 0.5625rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-family: var(--font-mono);
   text-transform: uppercase;
 }
@@ -831,22 +807,159 @@ body {
 .metric-value {
   font-size: 0.8125rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
   line-height: 1.1;
 }
 
 .metric-sub {
   font-size: 0.625rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
-/* Financial Itemized Cost List */
+/* Pricing Bottom Box (Free-Access) */
+.summary-bottom {
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.price-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--text-main);
+}
+
+.selling-display-box {
+  background: var(--bg-input);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.price-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.price-sub-label {
+  font-size: 0.5625rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  margin-bottom: 1px;
+}
+
+.price-divider {
+  font-size: 1.25rem;
+  color: var(--text-light);
+  font-weight: 300;
+  user-select: none;
+}
+
+.selling-total {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+
+#price-inc-vat.selling-total {
+  font-size: 1.1875rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+
+/* --------------------------------------------------------------------------
+   SECTION 6 - ADAPTIVE DARK CONTAINER OVERRIDES
+   Ensures strong readability via scoped White / Off-White inheritance.
+   -------------------------------------------------------------------------- */
+.summary-card {
+  background: #0f172a; /* Explicit Dark Background */
+  color: #ffffff;      /* Adaptive Primary Font Color */
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 0.875rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Ambient glow backgrounds remain unchanged */
+.ambient-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(48px);
+}
+.glow-top {
+  top: 0; right: 0;
+  width: 12rem; height: 12rem;
+  background: rgba(0, 80, 140, 0.35);
+}
+.glow-bottom {
+  bottom: 0; left: 0;
+  width: 8rem; height: 8rem;
+  background: rgba(15, 23, 42, 0.8);
+}
+
+/* Override structural borders for dark context */
+.summary-card .summary-header { border-bottom: 1px solid #1e293b; }
+.summary-card .summary-bottom { border-top: 1px solid #1e293b; }
+.summary-card .metric-card { background: rgba(2, 6, 23, 0.6); border: 1px solid #1e293b; }
+.summary-card .selling-display-box { background: #020617; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4); }
+
+/* Override Secondary elements to Off-White (#f1f5f9) in dark container */
+.summary-card .summary-kicker,
+.summary-card .metric-label,
+.summary-card .metric-sub,
+.summary-card .price-line,
+.summary-card .price-line .text-muted,
+.summary-card .price-sub-label,
+.summary-card .price-divider,
+.summary-card #cost-breakdown-locked-notice .text-muted {
+  color: #f1f5f9;
+}
+
+/* Override Primary elements to White (#ffffff) in dark container */
+.summary-card .summary-title,
+.summary-card .metric-value,
+.summary-card .selling-total,
+.summary-card #price-inc-vat.selling-total,
+.summary-card #cost-breakdown-locked-notice .text-primary {
+  color: #ffffff;
+}
+
+/* Adaptive Badge adjustment for dark background */
+.summary-card .badge-brand {
+  background: rgba(0, 80, 140, 0.3);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+
+/* --------------------------------------------------------------------------
+   FINANCIAL ITEMIZED COST LIST (RESTRICTED ACCESS MODAL/VIEW)
+   DO NOT MODIFY. Maintained exactly in original dark styling per requirements.
+   -------------------------------------------------------------------------- */
 .cost-list {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   font-size: 0.6875rem;
-  color: #cbd5e1;
+  color: #cbd5e1; /* Original */
 }
 
 .cost-row {
@@ -865,27 +978,27 @@ body {
   border-bottom: none;
   padding-top: 0.4rem;
   margin-top: 0.15rem;
-  color: #ffffff;
+  color: #ffffff; /* Original */
   font-weight: 800;
 }
 
 .cost-item-name {
   font-weight: 700;
   font-size: 0.75rem;
-  color: #f1f5f9;
+  color: #f1f5f9; /* Original */
   display: block;
 }
 
 .cost-subtext {
   font-size: 0.625rem;
-  color: #94a3b8;
+  color: #94a3b8; /* Original */
   font-family: var(--font-mono);
   margin-top: 1px;
 }
 
 .cost-item-val {
   font-weight: 700;
-  color: #ffffff;
+  color: #ffffff; /* Original */
   font-size: 0.75rem;
   white-space: nowrap;
   text-align: right;
@@ -895,74 +1008,11 @@ body {
   font-family: var(--font-mono);
   font-weight: 800;
   font-size: 0.9375rem;
-  color: #99bad1;
+  color: #99bad1; /* Original */
   white-space: nowrap;
   text-align: right;
 }
 
-/* Pricing Bottom Box - Side-by-Side Dual Pricing Display */
-.summary-bottom {
-  margin-top: 0.5rem;
-  padding-top: 0.4rem;
-  border-top: 1px solid #1e293b;
-}
-
-.price-line {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.6875rem;
-  color: #cbd5e1;
-}
-
-.selling-display-box {
-  background: #020617;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md);
-  border: 1px solid #1e293b;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  text-align: center;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
-}
-
-.price-cell {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.price-sub-label {
-  font-size: 0.5625rem;
-  font-weight: 800;
-  color: #94a3b8;
-  font-family: var(--font-mono);
-  letter-spacing: 0.05em;
-  margin-bottom: 1px;
-}
-
-.price-divider {
-  font-size: 1.25rem;
-  color: #334155;
-  font-weight: 300;
-  user-select: none;
-}
-
-.selling-total {
-  font-size: 1.0625rem;
-  font-weight: 700;
-  color: #cbd5e1;
-  font-family: var(--font-mono);
-  line-height: 1.2;
-}
-
-#price-inc-vat.selling-total {
-  font-size: 1.1875rem;
-  font-weight: 800;
-  color: var(--primary-border);
-}
 
 /* Bottom Reset Action */
 .reset-action-container {
