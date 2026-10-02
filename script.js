@@ -376,11 +376,9 @@ function renderBlueprint(calc) {
   const drawW = canvasW - 2 * padX; // 450px available width
   const drawH = canvasH - 2 * padY; // 134px available height
 
-  // Lay out the longer physical dimension horizontally across the landscape SVG canvas
-  const isHorizLength = (physLen >= physWid);
-
-  const horizFt = isHorizLength ? physLen : physWid;
-  const vertFt = isHorizLength ? physWid : physLen;
+  // Lock Semantics: X / Horizontal = LENGTH, Y / Vertical = WIDTH
+  const horizFt = physLen;
+  const vertFt = physWid;
 
   const scale = Math.min(drawW / horizFt, drawH / vertFt);
   scaleTag.textContent = `Scale: 1 ft = ${Math.round(scale)}px`;
@@ -395,11 +393,11 @@ function renderBlueprint(calc) {
   const isCarpet = calc.matType.startsWith('carpet_3100');
 
   // Axis Dimension Labels
-  const topTitle = isHorizLength ? "LENGTH" : "WIDTH";
-  const topVal = isHorizLength ? `${calc.length.toFixed(2)} ft` : `${calc.width.toFixed(2)} ft`;
+  const topTitle = "LENGTH";
+  const topVal = `${calc.length.toFixed(2)} ft`;
 
-  const leftTitle = isHorizLength ? "WIDTH" : "LENGTH";
-  const leftVal = isHorizLength ? `${calc.width.toFixed(2)} ft` : `${calc.length.toFixed(2)} ft`;
+  const leftTitle = "WIDTH";
+  const leftVal = `${calc.width.toFixed(2)} ft`;
 
   let svg = `<svg width="100%" height="100%" viewBox="0 0 ${canvasW} ${canvasH}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -412,69 +410,45 @@ function renderBlueprint(calc) {
 
   // Carpet 3100 Parallel Texture Ribs & Factory Built-In Edges
   if (isCarpet) {
-    if (isHorizLength) {
-      // Ribs run parallel along the LENGTH axis (horizontal lines)
-      for (let y = y0 + 5; y < y0 + h - 3; y += 5) {
-        svg += `<line x1="${x0 + 4}" y1="${y}" x2="${x0 + w - 4}" y2="${y}" class="rib-line" />`;
-      }
-      // Factory built-in length edges on top and bottom horizontal sides
-      svg += `<rect x="${x0}" y="${y0}" width="${w}" height="4" class="factory-edge" />`;
-      svg += `<rect x="${x0}" y="${y0 + h - 4}" width="${w}" height="4" class="factory-edge" />`;
-    } else {
-      // Ribs run parallel along the LENGTH axis (vertical lines)
-      for (let x = x0 + 5; x < x0 + w - 3; x += 5) {
-        svg += `<line x1="${x}" y1="${y0 + 4}" x2="${x}" y2="${y0 + h - 4}" class="rib-line" />`;
-      }
-      // Factory built-in length edges on left and right vertical sides
-      svg += `<rect x="${x0}" y="${y0}" width="4" height="${h}" class="factory-edge" />`;
-      svg += `<rect x="${x0 + w - 4}" y="${y0}" width="4" height="${h}" class="factory-edge" />`;
+    // Ribs run parallel along the LENGTH axis (horizontal lines across the X axis)
+    for (let y = y0 + 5; y < y0 + h - 3; y += 5) {
+      svg += `<line x1="${x0 + 4}" y1="${y}" x2="${x0 + w - 4}" y2="${y}" class="rib-line" />`;
     }
+    // Factory built-in length edges are on the top and bottom horizontal sides
+    svg += `<rect x="${x0}" y="${y0}" width="${w}" height="4" class="factory-edge" />`;
+    svg += `<rect x="${x0}" y="${y0 + h - 4}" width="${w}" height="4" class="factory-edge" />`;
   }
 
   if (calc.matType === 'wet_area_3') {
     // Requested customer mat area
-    const reqW = (isHorizLength ? calc.length : calc.width) * scale;
-    const reqH = (isHorizLength ? calc.width : calc.length) * scale;
+    const reqW = calc.length * scale;
+    const reqH = calc.width * scale;
     svg += `<rect x="${x0}" y="${y0}" width="${reqW}" height="${reqH}" fill="#94a3b8" stroke="#64748b" stroke-width="1" />`;
 
     // Discarded charged cut strips (non-reusable scrap waste)
     if (calc.width < 3) {
       const scrapH = (3 - calc.width) * scale;
-      const scrapY = isHorizLength ? y0 + calc.width * scale : y0 + calc.length * scale;
-      const scrapW = isHorizLength ? w : reqW;
-      svg += `<rect x="${x0}" y="${scrapY}" width="${scrapW}" height="${scrapH}" fill="url(#waste-stripe)" opacity="0.75" />`;
+      const scrapY = y0 + calc.width * scale;
+      svg += `<rect x="${x0}" y="${scrapY}" width="${w}" height="${scrapH}" fill="url(#waste-stripe)" opacity="0.75" />`;
     }
     if (calc.length < calc.roundedLength) {
       const scrapW = (calc.roundedLength - calc.length) * scale;
-      const scrapX = isHorizLength ? x0 + calc.length * scale : x0 + calc.width * scale;
-      const scrapH = isHorizLength ? reqH : h;
-      svg += `<rect x="${scrapX}" y="${y0}" width="${scrapW}" height="${scrapH}" fill="url(#waste-stripe)" opacity="0.75" />`;
+      const scrapX = x0 + calc.length * scale;
+      svg += `<rect x="${scrapX}" y="${y0}" width="${scrapW}" height="${h}" fill="url(#waste-stripe)" opacity="0.75" />`;
     }
   } else {
     // Assembly Seams (Rendered only when actually calculated)
-    if (isHorizLength) {
-      // Longitudinal seams (width panel joins along length) -> horizontal lines
-      for (let c = 1; c < calc.cols; c++) {
-        const cy = y0 + c * spec.standardWidth * scale;
-        svg += `<line x1="${x0}" y1="${cy}" x2="${x0 + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 3" />`;
-      }
-      // Transverse seams (length joints) -> vertical lines
-      for (let r = 1; r < calc.rows; r++) {
-        const cx = x0 + r * spec.standardLength * scale;
-        svg += `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${y0 + h}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 3" />`;
-      }
-    } else {
-      // Width is horizontal, Length is vertical
-      // Longitudinal seams (width panel joins) -> vertical lines
-      for (let c = 1; c < calc.cols; c++) {
-        const cx = x0 + c * spec.standardWidth * scale;
-        svg += `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${y0 + h}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 3" />`;
-      }
-      // Transverse seams (length joints) -> horizontal lines
-      for (let r = 1; r < calc.rows; r++) {
-        const cy = y0 + r * spec.standardLength * scale;
-        svg += `<line x1="${x0}" y1="${cy}" x2="${x0 + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 3" />`;
-      }
+    
+    // Longitudinal seams (width panel joins along length) -> horizontal lines across the X axis
+    for (let c = 1; c < calc.cols; c++) {
+      const cy = y0 + c * spec.standardWidth * scale;
+      svg += `<line x1="${x0}" y1="${cy}" x2="${x0 + w}" y2="${cy}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 3" />`;
+    }
+    
+    // Transverse seams (length joints) -> vertical lines across the Y axis
+    for (let r = 1; r < calc.rows; r++) {
+      const cx = x0 + r * spec.standardLength * scale;
+      svg += `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${y0 + h}" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 3" />`;
     }
 
     // Applied Edging Borders
@@ -485,28 +459,22 @@ function renderBlueprint(calc) {
                 <rect x="${x0 - 3}" y="${y0 - 2}" width="4" height="${h + 4}" fill="${edgingColor}" rx="1" />
                 <rect x="${x0 + w - 1}" y="${y0 - 2}" width="4" height="${h + 4}" fill="${edgingColor}" rx="1" />`;
       } else if (calc.edgingSides === 'two_width') {
-        if (isHorizLength) {
-          // Width sides are left and right vertical edges
-          svg += `<rect x="${x0 - 3}" y="${y0}" width="4" height="${h}" fill="${edgingColor}" rx="1" />
-                  <rect x="${x0 + w - 1}" y="${y0}" width="4" height="${h}" fill="${edgingColor}" rx="1" />`;
-        } else {
-          // Width sides are top and bottom horizontal edges
-          svg += `<rect x="${x0}" y="${y0 - 3}" width="${w}" height="4" fill="${edgingColor}" rx="1" />
-                  <rect x="${x0}" y="${y0 + h - 1}" width="${w}" height="4" fill="${edgingColor}" rx="1" />`;
-        }
+        // Width sides (the raw cut width ends) are the left and right vertical edges
+        svg += `<rect x="${x0 - 3}" y="${y0}" width="4" height="${h}" fill="${edgingColor}" rx="1" />
+                <rect x="${x0 + w - 1}" y="${y0}" width="4" height="${h}" fill="${edgingColor}" rx="1" />`;
       }
     }
   }
 
   // Technical Dimension Callouts
-  // Top Callout (Horizontal Axis)
+  // Top Callout (Horizontal Axis = LENGTH)
   svg += `<line x1="${x0}" y1="${y0 - 12}" x2="${x0 + w}" y2="${y0 - 12}" stroke="#64748b" stroke-width="1.2"/>
           <line x1="${x0}" y1="${y0 - 16}" x2="${x0}" y2="${y0 - 8}" stroke="#64748b" stroke-width="1.2"/>
           <line x1="${x0 + w}" y1="${y0 - 16}" x2="${x0 + w}" y2="${y0 - 8}" stroke="#64748b" stroke-width="1.2"/>
           <text x="${x0 + w / 2}" y="${y0 - 24}" text-anchor="middle" font-family="Montserrat, sans-serif" font-size="8.5" font-weight="800" fill="#64748b" letter-spacing="0.06em">${topTitle}</text>
           <text x="${x0 + w / 2}" y="${y0 - 14}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="800" fill="#0f172a">${topVal}</text>`;
 
-  // Left Callout (Vertical Axis)
+  // Left Callout (Vertical Axis = WIDTH)
   svg += `<line x1="${x0 - 12}" y1="${y0}" x2="${x0 - 12}" y2="${y0 + h}" stroke="#64748b" stroke-width="1.2"/>
           <line x1="${x0 - 16}" y1="${y0}" x2="${x0 - 8}" y2="${y0}" stroke="#64748b" stroke-width="1.2"/>
           <line x1="${x0 - 16}" y1="${y0 + h}" x2="${x0 - 8}" y2="${y0 + h}" stroke="#64748b" stroke-width="1.2"/>
